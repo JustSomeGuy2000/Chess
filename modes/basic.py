@@ -1,77 +1,103 @@
+from __future__ import annotations
 import abc
 import copy
 from typing import Literal
-from pygame import sprite
+from pygame import sprite, Surface, Rect
 from collections.abc import Generator, Callable
 
 type Path=str
 type Coord=tuple[int,int]
-type BoardLayout=list[list[str]]
+type BoardCoord=tuple[int,int]
+type BoardLayout=list[list[Tile]]
 
 numbers=["0","1","2","3","4","5","6","7","8","9"]
 letters=["","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"]
 
 class Piece(sprite.Sprite, abc.ABC):
-    def __init__(self, name:str, value:int, colour:Literal["black","white"], image:Path):
+    '''A piece. Does not display itself, that's the Tile's job.'''
+    def __init__(self, name:str, value:int, colour:Literal["black","white","any"], initpos:BoardCoord, imagewhite:Surface, imageblack:Surface|None=None):
+        '''Attributes common to all pieces'''
         super().__init__()
         self.name=name
         self.value=value
         self.colour=colour
-        self.image=image #first value is if white, second is if black
+        self.initpos=initpos
+        if self.colour == "black":
+            self.image=imageblack
+        else:
+            self.image=imagewhite
+        self.parent:Tile|None=None
+        self.promotes_to:list[Piece]|None=None
+        self.promote_pos:list[BoardCoord]|None=None
 
     @abc.abstractmethod
-    def display(self):
+    def moves(self) -> list[BoardCoord]:
         pass
 
     @abc.abstractmethod
-    def moves(self):
+    def capture_squares(self) -> list[BoardCoord]:
         pass
 
     @abc.abstractmethod
-    def captures(self):
-        pass
+    def move_to(self, final:Tile) -> Piece:
+        '''Move to a Tile. What really happens is that it removes itself from the previous Tile and returns what should be in the Tile it moves to. Actually setting the Tile's piece to that is handled by the game.'''
+        return
 
-    @abc.abstractmethod
-    def capture(self):
-        pass
+class Tile():
+    '''A container for tile information'''
+    def __init__(self, boardcoord:BoardCoord, base:Literal["empty", "void"], colour:Literal["dark","light"]|None=None):
+        self.boardcoord=boardcoord
+        self.base=base
+        self.coord:Coord|None=None
+        self.piece:Piece|None=None
+        self.image:Surface|None=None
+        self.colour=colour
+        self.rect:Rect|None=None
 
-    @abc.abstractmethod
-    def remove(self):
-        pass
+    def display(self, surface:Surface):
+        surface.blit(self.piece.image, self.coord)
 
 class Board():
+    '''Everything to do with the construction and management of boards.'''
     def __init__(self, height:int, width:int, layout:list[list[str]]=None, initpos:list[list[str]]=None, piecesdict:dict[str,Piece]=None):
         self.height=height #difference between highest and lowest point
         self.width=width #difference between rightmost and leftmost point
         self.layout=layout #specific tile layout. If None, a square is assumed. Numbers for full spaces, letters for empty ones.
-        self.initpos=initpos #a similar format to layout, with numbers indicating piceless squares and letters according to pieceswhite and piecesblack indicating pieces
+        self.initpos=initpos #a similar format to layout, with numbers indicating piceless squares and letters according to piecesdict indicating pieces
         self.piecesdict=piecesdict#dictionary containing the pieces that go on the board, and the letters that represent them.
+        self.full_layout:BoardLayout|None=None #full layout, the one that is used for everything
+        self.image:Surface|None=None #what the board looks like
 
-    def construct(self) -> list[list[str]]:
+    def construct(self) -> BoardLayout:
         '''Returns a list of lists representing the full board without intial pieces placed. Spaces with tiles are called "empty". For non-quadrilateral boards, non-tile spaces are called "void".'''
         result=[]
+        count=0
         if self.layout == None:
             for i in range(self.height):
                 temp=[]
                 for j in range(self.width):
-                    temp.append("empty")
+                    temp.append(Tile((j,i),"empty"))
                 result.append(temp)
         else:
-            for row in self.layout:
+            for i in range(len(self.layout)):
                 temp=[]
-                for code in row:
+                for j in len(self.layout[i]):
+                    code=self.layout[i][j]
                     if code in numbers:
-                        for i in range(int(code)):
-                            temp.append("empty")
+                        for k in range(int(code)):
+                            temp.append(Tile((j,i),"empty","light" if count%2 == 0 else "dark"))
+                            count += 1
                     elif code in letters:
-                        for i in range(letters.index(code)):
-                            temp.append("void")
+                        for k in range(letters.index(code)):
+                            temp.append(Tile((j,i),"void"))
+                            count += 1
                     else:
                         raise TypeError(f"Invalid value: {code}")
                 result.append(temp)
-        return result
+        self.full_layout=None
     
-    def populate(self, full_board:list[list[str]]) -> BoardLayout:
+    def populate(self) -> BoardLayout:
+        full_board=self.full_layout
         '''Takes in a constructed board and populates it with pieces.'''
         if self.initpos != None and self.piecesdict != None:
             for i in len(self.initpos):
@@ -80,11 +106,41 @@ class Board():
                     if code in numbers:
                         cur_pos += int(code)
                     elif code in self.piecesdict:
-                        full_board[i][cur_pos]=copy.copy(self.piecesdict[code])
+                        full_board[i][cur_pos].piece=copy.copy(self.piecesdict[code])
+                        full_board[i][cur_pos].piece.parent=full_board[i][cur_pos]
+                        full_board[i][cur_pos].piece.initpos=(cur_pos,i)
                         cur_pos += 1
                     else:
                         raise TypeError(f"Invalid value: {code}")
-        return full_board
+        self.full_layout=full_board
+    
+    def construct_img(self, light:Surface, dark:Surface, void:Surface, whole:Surface|None=None) -> Surface:
+        if whole == None:
+            layout=self.full_layout
+            height=len(layout)
+            width=len(layout[0])
+            base=Surface((100*width,100*height))
+            for i in range(height):
+                for j in range(width):
+                    if layout[i][j].base == "void":
+                        base.blit(void,(100*j,100*i))
+                    elif layout[i][j].base == "empty":
+                        if layout[i][j].colour == "light":
+                            base.blit(light,(100*j,100*i))
+                        elif layout[i][j].colour == "dark":
+                            base.blit(dark,(100*j,100*i))
+            self.image=base
+        else:
+            self.image=whole
+
+    def make_tile_hitboxes(self, anchor:Coord, rect_size:Coord):
+        height=len(self.full_layout)
+        width=len(self.full_layout[0])
+        for y in range(len(height)):
+            for x in range(len(width)):
+                target=self.full_layout[y][x]
+                if target.base != "void":
+                    target.rect=Rect(anchor[0]+(target.boardcoord[0]*rect_size[0]),anchor[1]+(target.boardcoord[1]*rect_size[1]))
     
 class Movement():
     @staticmethod
@@ -101,64 +157,64 @@ class Movement():
         return [entry for entry in gen]
     
     @staticmethod
-    def forward(max_height:int,limit:int,coord:Coord, layout:BoardLayout=None):
+    def forward(max_height:int, limit:int, coord:Coord, layout:BoardLayout):
         count=0
-        while (coord[1]+count+1) <= max_height and count <= limit:
+        while (coord[1]+count+1) <= max_height and count <= limit and layout[coord[1]+count+1][coord[0]].piece == None:
             count += 1
             yield (coord[0],coord[1]+count)
 
     @staticmethod
-    def backward(max_depth:int,limit:int,coord:Coord):
+    def backward(max_depth:int, limit:int, coord:Coord, layout:BoardLayout):
         count=0
-        while (coord[1]-count-1) >= max_depth and count <= limit:
+        while (coord[1]-count-1) >= max_depth and count <= limit and layout[coord[1]-count-1][coord[0]].piece == None:
             count += 1
             yield (coord[0],coord[1]-count)
 
     @staticmethod
-    def left(max_left:int,limit:int,coord:Coord):
+    def left(max_left:int, limit:int, coord:Coord, layout:BoardLayout):
         count=0
-        while (coord[0]-count-1) >= max_left and count <= limit:
+        while (coord[0]-count-1) >= max_left and count <= limit and layout[coord[1]][coord[0]-count-1].piece == None:
             count += 1
             yield (coord[0]-count,coord[1])
 
     @staticmethod
-    def right(max_right:int,limit:int,coord:Coord):
+    def right(max_right:int, limit:int, coord:Coord, layout:BoardLayout):
         count=0
-        while (coord[0]+count+1) <= max_right and count <= limit:
+        while (coord[0]+count+1) <= max_right and count <= limit and layout[coord[1]][coord[0]+count+1].piece == None:
             count += 1
             yield (coord[0]+count,coord[1])
 
     @staticmethod
-    def compound(maxx:int,maxy:int,limitx:int,limity:int,coord:Coord,genx:Callable,geny:Callable):
+    def compound(maxx:int, maxy:int, limitx:int, limity:int, coord:Coord, genx:Callable, geny:Callable, layout:BoardLayout):
         '''Take the x values from genx and the y values from geny'''
-        list1=Movement.to_list(genx(maxx,limitx,coord))
-        list2=Movement.to_list(geny(maxy,limity,coord))
+        list1=Movement.to_list(genx(maxx,limitx,coord,layout))
+        list2=Movement.to_list(geny(maxy,limity,coord,layout))
         for i in range(min(len(list1),len(list2))):
             yield list1[i][0], list2[i][1]
 
     @staticmethod
-    def orthogonals(maxes:tuple[int,int,int,int],limits:tuple[int,int,int,int],coord:Coord):
+    def orthogonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:Coord, layout:BoardLayout):
         '''Forward, backward, left, right, in that order'''
-        for entry in Movement.forward(maxes[0],limits[0],coord):
+        for entry in Movement.forward(maxes[0],limits[0],coord,layout):
             yield entry
-        for entry in Movement.backward(maxes[1],limits[1],coord):
+        for entry in Movement.backward(maxes[1],limits[1],coord,layout):
             yield entry
-        for entry in Movement.left(maxes[2],limits[2],coord):
+        for entry in Movement.left(maxes[2],limits[2],coord,layout):
             yield entry
-        for entry in Movement.forward(maxes[3],limits[3],coord):
+        for entry in Movement.forward(maxes[3],limits[3],coord,layout):
             yield entry
 
     @staticmethod
-    def diagonals(maxes:tuple[int,int,int,int],limits:tuple[int,int,int,int],coord:Coord):
+    def diagonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:Coord, layout:BoardLayout):
         '''Inputs: top, bottom, left, right\n
         Outputs: top-right, top-left, bottom-left, bottom-right'''
-        for entry in Movement.compound(maxes[3],maxes[0],limits[3],limits[0],coord,Movement.right,Movement.forward):
+        for entry in Movement.compound(maxes[3],maxes[0],limits[3],limits[0],coord,Movement.right,Movement.forward, layout):
             yield entry
-        for entry in Movement.compound(maxes[2],maxes[0],limits[2],limits[0],coord,Movement.left,Movement.forward):
+        for entry in Movement.compound(maxes[2],maxes[0],limits[2],limits[0],coord,Movement.left,Movement.forward, layout):
             yield entry
-        for entry in Movement.compound(maxes[2],maxes[1],limits[2],limits[1],coord,Movement.left,Movement.backward):
+        for entry in Movement.compound(maxes[2],maxes[1],limits[2],limits[1],coord,Movement.left,Movement.backward, layout):
             yield entry
-        for entry in Movement.compound(maxes[3],maxes[1],limits[3],limits[1],coord,Movement.right,Movement.backward):
+        for entry in Movement.compound(maxes[3],maxes[1],limits[3],limits[1],coord,Movement.right,Movement.backward, layout):
             yield entry
 
     @staticmethod
@@ -166,23 +222,23 @@ class Movement():
         pass
 
     @staticmethod
-    def anywhere():
-        pass
+    def anywhere(layout:BoardLayout):
+        height=len(layout)
+        width=len(layout[0])
+        for y in range(height):
+            for x in range(width):
+                if layout[y][x].piece == None:
+                    yield layout[y][x].boardcoord
 
 '''
 To-do:
-Promotion attribute (pieces it can promote to)
-Promotion_pos attribute (positions it can promote in)
+Check and checkmate checking
 Extra move options (for variants like beirut chess, where there is an option to detonate)
-Add class for tiles (for variants like portal chess)
 init_pos attribute for pieces (for some variants)
-Jump parameter (stop iteration if a piece is in the way)
-Teleport method (anywhere)
 Custom positions (loaded in from PNG or FEN)
 Specifiable win condition
 Manual piece-placing option? (for certain variants)
 Manual army choosing? (for some variants)
-Custom board images (can be per tile or wholesale)
 Pocket-like space (for some variants)
 
 Modes:

@@ -1,2 +1,3 @@
 .vscode
-modes\__pycache__
+venv
+modes/__pycache__

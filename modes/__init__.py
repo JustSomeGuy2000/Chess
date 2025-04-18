@@ -1,3 +1,5 @@
+'''Contains all the chess gamemodes as well as a separate file (basic) for objects common to all of them.'''
+
 from os.path import dirname, basename, isfile, join
 import glob
 

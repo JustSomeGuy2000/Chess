@@ -1,3 +1,6 @@
+'''Foundation classes and methods for chess modes. Includes:
+Piece template, Board template, Tile object, Movement methods, Capture methods, Rules template, OptionBar object, Pocket object, and Info template.'''
+
 from __future__ import annotations
 from math import copysign, ceil
 from os.path import join
@@ -9,19 +12,31 @@ type Path=str
 type Coord=tuple[int,int]
 type BoardCoord=tuple[int,int]
 type BoardLayout=list[list[Tile]]
+type Colour=tuple[int,int,int]
 
 numbers=["0","1","2","3","4","5","6","7","8","9"]
 letters=["","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"]
 
+display.init()
 INFO=display.Info()
+WIN_WIDTH=INFO.current_w
+WIN_HEIGHT=INFO.current_h-80
+screen=display.set_mode((WIN_WIDTH,WIN_HEIGHT))
 
-STD_TILEDIM=(100,100)
+STD_TILEDIM=(50,50)
 PCS_IMG_DIR=join("assets","sprites","pieces")
+TIL_IMG_DIR=join("assets","sprites","tiles")
+FNT_IMG_DIR=join("assets","montserrat")
 POCKET_ANCHORS=([100,1000],[100,100])
-SELECT_COLOUR=(150,190,0)
-SHADES=[(55, 55, 55),(92, 92, 92),(131, 131, 131),(177, 177, 177),(233, 233, 233)]
+
+SHADES:list[Colour]=[(40,40,40),(55, 55, 55),(92, 92, 92),(131, 131, 131),(177, 177, 177),(233, 233, 233)]
+GREENS:list[Colour]=[(69,117,60),(129,182,76),(152,193,91),(160,210,96)]
+ORANGE:Colour=(155,168,0)
+WHITE=(255,255,255)
+BLACK=(0,0,0)
 #SHADES=[(17,17,17),(51,51,51),(85,85,85),(119,119,119),(153,153,153)]
 ROUNDNESS=25
+SELECT_COLOUR=ORANGE
 
 INFO_BORDERS=(INFO.current_w/6,5*INFO.current_w/6)
 INFO_PADDING=(10,20,40,20) #left-right, top, bottom, split
@@ -32,7 +47,7 @@ INFO_TITLE_FONT:font.Font=None #replace
 INFO_ALIAS_FONT:font.Font=None #replace
 INFO_BODY_FONT:font.Font=None #replace
 
-GREEN_TILE=Surface(STD_TILEDIM).fill((119,148,85))
+GREEN_TILE=Surface(STD_TILEDIM)
 GREEN_TILE.fill((119,148,85))
 CREAM_TILE=Surface(STD_TILEDIM)
 CREAM_TILE.fill((234,234,208))
@@ -48,7 +63,7 @@ class Piece(sprite.Sprite):
         self.value=value
         self.colour=colour
         self.initpos=initpos
-        self.image=transform.scale(image.load(join(PCS_IMG_DIR,sprite)),STD_TILEDIM)
+        self.image=transform.scale(image.load(join(PCS_IMG_DIR,sprite)),STD_TILEDIM).convert_alpha()
         self.check_target=check_target #whether the piece is a target for check-like conditions
         self.parent:Tile|None=None
         self.promotion:OptionsBar|None=None
@@ -113,7 +128,7 @@ class Tile():
 
 class Board():
     '''Everything to do with the construction and management of boards.'''
-    def __init__(self, height:int, width:int, layout:list[list[str]]=None, tile_dim:int=STD_TILEDIM, initpos:list[list[str]]=None, piecesdict:dict[str,type]=None):
+    def __init__(self, height:int, width:int, layout:list[str]=None, tile_dim:int=STD_TILEDIM, initpos:list[str]=None, piecesdict:dict[str,type]=None):
         self.height=height #difference between highest and lowest point
         self.width=width #difference between rightmost and leftmost point
         self.layout:list[list[str]]=layout #specific tile layout. If None, a square is assumed. Numbers for full spaces, letters for empty ones.
@@ -146,7 +161,7 @@ class Board():
                     code=self.layout[i][j]
                     if code in numbers:
                         for k in range(int(code)):
-                            temp.append(Tile((x_count+1,i+1),"empty",1 if count%2 == 0 else 0,Rect(anchor[0]+(x_count*self.tile_dim),anchor[1]+(i*self.tile_dim),self.tile_dim,self.tile_dim)))
+                            temp.append(Tile((x_count+1,i+1),"empty",Rect(anchor[0]+(x_count*self.tile_dim[0]),anchor[1]+(i*self.tile_dim[1]),self.tile_dim[0],self.tile_dim[1]),1 if count%2 == 0 else 0,))
                             x_count += 1
                             count += 1
                     elif code in letters:
@@ -156,6 +171,7 @@ class Board():
                             count += 1
                     else:
                         raise TypeError(f"Invalid value: {code}")
+                count=i+1
                 result.append(temp)
         self.full_layout=result
     
@@ -177,7 +193,7 @@ class Board():
                         raise TypeError(f"Invalid value: {code}")
         self.full_layout=full_board
     
-    def construct_img(self, light:Surface, dark:Surface, void:Surface, whole:Surface|None=None) -> Surface:
+    def construct_img(self, light:Surface, dark:Surface, void:Surface, whole:Surface|None=None):
         tile_dim=self.tile_dim[0]
         if whole == None:
             layout=self.full_layout
@@ -194,9 +210,9 @@ class Board():
                             base.blit(light,(tile_dim*x,tile_dim*y))
                         elif target.colour == 1:
                             base.blit(dark,(tile_dim*x,tile_dim*y))
-            self.image=base
+            self.image=base.convert_alpha()
         else:
-            self.image=whole
+            self.image=whole.convert_alpha()
 
     def display(self, surface:Surface):
         if not isinstance(self.image, Surface):
@@ -552,16 +568,21 @@ def wrap_text(text:str, max:int, font:font.Font) -> list[str]:
             temp=[]
     return [line[1:] for line in lines]
 
-class ModeInfo():
-    def __init__(self, name:str, abstract:str, info:str, image:Surface, links:list[ModeInfo]):
+class Info():
+    def __init__(self, name:str, abstract:str, info:str, img:str, img_bg:str|Surface, links:list[Info]):
         self.name=wrap_text(name, INFO_BORDERS[1]-INFO_BORDERS[0]-3*INFO_PADDING[0]-INFO_IMG_DIM[0], INFO_TITLE_FONT)
         self.abstract=wrap_text(abstract,INFO_BORDERS[1]-INFO_BORDERS[0]-2*INFO_PADDING[0], INFO_ALIAS_FONT)
         self.body=wrap_text(info, INFO_BORDERS[1]-INFO_BORDERS[0]-2*INFO_PADDING[0], INFO_BODY_FONT)
-        self.image=image
+        if isinstance(img_bg, str):
+            self.image:Surface=transform.scale(image.load(join(TIL_IMG_DIR,img_bg)),INFO_IMG_DIM).convert_alpha()
+        else:
+            self.image:Surface=img_bg.convert_alpha()
+        self.image.blit(transform.scale(image.load(join(PCS_IMG_DIR,img)),INFO_IMG_DIM).convert_alpha(),(0,0))
         self.links=links
 
         self.scroll_offset=0
         self.scrollable=False
+        self.link_rects:list[Rect]=[]
 
         self.name_height=INFO_TITLE_FONT.get_height()*len(self.name)
         self.abstract_height=INFO_ALIAS_FONT.get_height()*len(self.abstract)
@@ -572,8 +593,8 @@ class ModeInfo():
         self.abstract_anchor:Coord=(INFO_BORDERS[0]+INFO_PADDING[0],INFO_PADDING[1]+self.name_height+INFO_PADDING[3])
         self.body_anchor:Coord=(self.abstract_anchor[0],self.abstract_anchor[1]+self.abstract_height+2*INFO_PADDING[2])
 
-        self.display_base:Surface=Surface((INFO_BORDERS[1]-INFO_BORDERS[0],self.body_anchor[1]+self.body_height+INFO_PADDING[2]+2*INFO_PADDING[3]+INFO_BODY_FONT.get_height()+(INFO_MINI_DIM[1]+INFO_PADDING[3])*ceil(len(self.links)/4)),SRCALPHA,32)
-        self.scrollable=self.display_base.get_height() > INFO.current_h
+        self.display_base:Surface=Surface((INFO_BORDERS[1]-INFO_BORDERS[0],self.body_anchor[1]+self.body_height+INFO_PADDING[2]+2*INFO_PADDING[3]+INFO_BODY_FONT.get_height()+(INFO_MINI_DIM[1]+INFO_PADDING[3]+100)*ceil(len(self.links)/4)),SRCALPHA,32)
+        self.scrollable=self.display_base.get_height() > WIN_HEIGHT
         self.display_base.fill(SHADES[0])
         draw.rect(self.display_base,SHADES[1],Rect(0,0,INFO_BORDERS[1]-INFO_BORDERS[0],self.body_anchor[1]+self.body_height+INFO_PADDING[2]),border_radius=ROUNDNESS) #first rounded rect layer
         draw.rect(self.display_base,SHADES[2],Rect(0,0,INFO_BORDERS[1]-INFO_BORDERS[0],self.abstract_anchor[1]+self.abstract_height+INFO_PADDING[2]),border_radius=ROUNDNESS) #second rounded rect layer, for title and abstract
@@ -585,7 +606,7 @@ class ModeInfo():
         for i in range(len(self.body)):
             self.display_base.blit(INFO_BODY_FONT.render(self.body[i],True,(255,255,255)),(self.body_anchor[0],self.body_anchor[1]+INFO_BODY_FONT.get_height()*i))
             self.links_anchor=(self.body_anchor[0],self.body_anchor[1]+INFO_BODY_FONT.get_height()*i+INFO_PADDING[3])
-        self.display_base.blit(INFO_BODY_FONT.render("Pieces:"),self.links_anchor)
+        self.display_base.blit(INFO_BODY_FONT.render("Included in/ Contains:"),self.links_anchor)
         self.links_anchor=(self.links_anchor[0],self.links_anchor+INFO_PADDING[3]+INFO_BODY_FONT.get_height())
         carry_over_height=[0]
         for i in range(ceil(len(self.links)/4)): #rows
@@ -596,92 +617,12 @@ class ModeInfo():
                 words=wrap_text(target.name,INFO_MINI_DIM[0])
                 for k in len(words):
                     self.display_base.blit(INFO_BODY_FONT.render(words[k],True,(255,255,255)),(self.links_anchor[0]+j*(INFO_MINI_DIM[0]+LINK_SPACING)+INFO_MINI_DIM/2-INFO_BODY_FONT.size(words[k])[0]/2,))
+                self.link_rects.append(Rect((self.links_anchor[0]+(INFO_MINI_DIM+LINK_SPACING)*j,self.links_anchor[1]+(INFO_MINI_DIM[1]*INFO_PADDING[3])*i+sum(carry_over_height)),(INFO_MINI_DIM[0],INFO_MINI_DIM[0]+INFO_BODY_FONT.get_height()*len(words))))
                 words_height=max(words_height, INFO_BODY_FONT.get_height()*len(words))
             carry_over_height.append(words_height)
 
     def display(self, surface:Surface):
         surface.blit(self.display_base, (INFO_BORDERS[0],-self.scroll_offset))
-        
-    def display_mini(self):
-        pass
 
-class PieceInfo():
-    def __init__(self, name:str, alias:str, info:str, included_in:list[ModeInfo], moves:Surface):
-        self.name=wrap_text(name, INFO_BORDERS[1]-INFO_BORDERS[0]-3*INFO_PADDING[0]-INFO_IMG_DIM[0], INFO_TITLE_FONT)
-        self.alias=wrap_text(alias, INFO_BORDERS[1]-INFO_BORDERS[0]-2*INFO_PADDING[0], INFO_BODY_FONT)
-        self.info=wrap_text(info, INFO_BORDERS[1]-INFO_BORDERS[0]-2*INFO_PADDING[0], INFO_BODY_FONT)
-        self.included_in=included_in
-        self.moves=moves
-
-    def display(self):
-        pass
-
-    def display_mini(self):
-        pass
-
-print("")
-'''
-To-do:
-Checkmate checking
-Extra move options (for variants like beirut chess, where there is an option to detonate)
-Custom positions (loaded in from PNG or FEN)
-Specifiable win condition
-Manual piece-placing option? (for certain variants)
-Manual army choosing? (for some variants)
-Pocket-like space (for some variants)
-
-Modes:
-Duck chess (the duck)
-Fischer random
-Atomic chess
-Conway chess (every move, pieces are generated based on Conway's Game of Life rules according to the average of the pieces that created it, adding for your colour and subtracting gor the other. These pieces are considere virtual and disappear when the virtual pieces are recalculated.)
-Chinese chess
-Fairy chess
-Different board shapes and sizes
-Random capture chess
-Occidental standard chess (search it up)
-Shogi
-Checkers
-Fog of war
-Undercover queen?
-Three-check
-King of the Hill
-Endgame chess
-Los Alamos chess
-Pre-chess
-Omega chess
-Transcendental chess
-Dunsany's chess
-Peasant's revolt
-Really bad chess
-Baroque chess
-Berolina chess
-Chess different armies
-2000 AD chess
-Kung-fu chess
-Pocket mutation chess
-Super-X chess
-Way of the knight
-Etchessera
-Cannibal chess
-Andernach chess
-Circe chess
-Benedict chess
-Chad
-Overpopulation chess
-Checkers chess
-Prohibition chess
-Gravity chess
-Einstein chess
-Grid chess
-Knight relay
-Monochromatic chess
-Portal chess
-Portal-edge chess (only left and right sides)
-Racing kings
-Beirut chess
-Panic chess
-Synchronous chess?
-Viennese chess
-Taikyoku shogi
-'''
+print('Module "basic" (game foundations) loaded.')
+quit()

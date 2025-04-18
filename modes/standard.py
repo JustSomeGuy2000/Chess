@@ -1,15 +1,11 @@
+'''Gamemode: occidental standard chess'''
+
 import itertools
-from basic import *
+from modes.basic import *
 from pygame import *
 from math import inf
 m=Movement
 c=Capture
-
-class Info():
-    def __init__(self):
-        self.name="Standard Chess"
-        self.info="The contemporary standard version of chess, known by over half a billion people worldwide."
-        self.image=transform.scale(image.load(join(PCS_IMG_DIR,"pawn_w.png")),INFO_IMG_DIM)
 
 class WhitePawn(Piece):
     def __init__(self):
@@ -228,7 +224,26 @@ class BlackKing(Piece):
         self.lines_of_sight=WhiteKing.lines_of_sight
 
 STD_PCS_DICT:dict[str,type]={"P":WhitePawn,"p":BlackPawn,"B":WhiteBishop,"b":BlackBishop,"N":WhiteKnight,"n":BlackKnight,"R":WhiteRook,"r":BlackRook,"Q":WhiteQueen,"q":BlackQueen,"K":WhiteKing,"k":BlackKing}
+STD_INIT_POS:list[list[str]]=["rnbqkbnr","pppppppp","8","8","8","8","PPPPPPPP","RNBQKBNR"]
 
-board=Board(8,8,["8","8","8","8","8","8","8","8"],piecesdict=STD_PCS_DICT)
+board=Board(8,8,["8","8","8","8","8","8","8","8"],piecesdict=STD_PCS_DICT,initpos=STD_INIT_POS)
+lock=Rules.lock
+win=Rules.win
 
-print('Module "standard" (normal chess) loaded.')
+print('Module "standard" (occidental chess) loaded.')
+
+if __name__ == "__main__":
+    board.construct((0,0))
+    board.populate()
+    board.construct_img(CREAM_TILE,GREEN_TILE,EMPTY_TILE)
+    screen.blit(board.image,(0,0))
+    screen.blit(GREEN_TILE,(0,0))
+    temp=True
+    clock=time.Clock()
+
+    while temp:
+        for e in event.get():
+            if e.type == QUIT:
+                temp=False
+        display.update()
+        clock.tick(60)

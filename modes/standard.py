@@ -1,11 +1,15 @@
 '''Gamemode: occidental standard chess'''
 
 import itertools
-from modes.basic import *
+if __name__ == "__main__":
+    from basic import *
+else:
+    from modes.basic import *
 from pygame import *
 from math import inf
 m=Movement
 c=Capture
+font.init()
 
 class WhitePawn(Piece):
     def __init__(self):
@@ -230,20 +234,19 @@ board=Board(8,8,["8","8","8","8","8","8","8","8"],piecesdict=STD_PCS_DICT,initpo
 lock=Rules.lock
 win=Rules.win
 
+pawn_info=None
+bishop_info=None
+knight_info=None
+rook_info=None
+queen_info=None
+king_info=None
+'''
+info=Info("Chess","The most commonly played variant of chess, sometimes also called occidental chess.","Placeholder",join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info])
+info.construct()
+
+piece_infos:list[Info]=[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info]
+for piece_info in piece_infos:
+    piece_info.set_links([info])
+    piece_info.construct()'''
+
 print('Module "standard" (occidental chess) loaded.')
-
-if __name__ == "__main__":
-    board.construct((0,0))
-    board.populate()
-    board.construct_img(CREAM_TILE,GREEN_TILE,EMPTY_TILE)
-    screen.blit(board.image,(0,0))
-    screen.blit(GREEN_TILE,(0,0))
-    temp=True
-    clock=time.Clock()
-
-    while temp:
-        for e in event.get():
-            if e.type == QUIT:
-                temp=False
-        display.update()
-        clock.tick(60)

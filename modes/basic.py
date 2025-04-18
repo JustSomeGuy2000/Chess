@@ -43,9 +43,10 @@ INFO_PADDING=(10,20,40,20) #left-right, top, bottom, split
 INFO_IMG_DIM=(200,200)
 INFO_MINI_DIM=(200,200)
 LINK_SPACING=50
-INFO_TITLE_FONT:font.Font=None #replace
-INFO_ALIAS_FONT:font.Font=None #replace
-INFO_BODY_FONT:font.Font=None #replace
+font.init()
+INFO_TITLE_FONT:font.Font=font.Font(join(FNT_IMG_DIR,"bold++.ttf"),70)
+INFO_ALIAS_FONT:font.Font=font.Font(join(FNT_IMG_DIR,"bold+.ttf"),40)
+INFO_BODY_FONT:font.Font=font.Font(join(FNT_IMG_DIR,"regular.ttf"),30)
 
 GREEN_TILE=Surface(STD_TILEDIM)
 GREEN_TILE.fill((119,148,85))
@@ -565,11 +566,11 @@ def wrap_text(text:str, max:int, font:font.Font) -> list[str]:
             lines.append(" "+word)
         else:
             lines.append(temp)
-            temp=[]
+            temp=""
     return [line[1:] for line in lines]
 
 class Info():
-    def __init__(self, name:str, abstract:str, info:str, img:str, img_bg:str|Surface, links:list[Info]):
+    def __init__(self, name:str, abstract:str, info:str, img:str, img_bg:str|Surface, links:list[Info]=None):
         self.name=wrap_text(name, INFO_BORDERS[1]-INFO_BORDERS[0]-3*INFO_PADDING[0]-INFO_IMG_DIM[0], INFO_TITLE_FONT)
         self.abstract=wrap_text(abstract,INFO_BORDERS[1]-INFO_BORDERS[0]-2*INFO_PADDING[0], INFO_ALIAS_FONT)
         self.body=wrap_text(info, INFO_BORDERS[1]-INFO_BORDERS[0]-2*INFO_PADDING[0], INFO_BODY_FONT)
@@ -577,9 +578,9 @@ class Info():
             self.image:Surface=transform.scale(image.load(join(TIL_IMG_DIR,img_bg)),INFO_IMG_DIM).convert_alpha()
         else:
             self.image:Surface=img_bg.convert_alpha()
-        self.image.blit(transform.scale(image.load(join(PCS_IMG_DIR,img)),INFO_IMG_DIM).convert_alpha(),(0,0))
+        self.image.blit(transform.scale(image.load(img),INFO_IMG_DIM).convert_alpha(),(0,0))
         self.links=links
-
+        self.miniform_words_height=len(wrap_text(name,INFO_MINI_DIM[0],INFO_BODY_FONT))*INFO_BODY_FONT.get_height()
         self.scroll_offset=0
         self.scrollable=False
         self.link_rects:list[Rect]=[]
@@ -593,7 +594,14 @@ class Info():
         self.abstract_anchor:Coord=(INFO_BORDERS[0]+INFO_PADDING[0],INFO_PADDING[1]+self.name_height+INFO_PADDING[3])
         self.body_anchor:Coord=(self.abstract_anchor[0],self.abstract_anchor[1]+self.abstract_height+2*INFO_PADDING[2])
 
-        self.display_base:Surface=Surface((INFO_BORDERS[1]-INFO_BORDERS[0],self.body_anchor[1]+self.body_height+INFO_PADDING[2]+2*INFO_PADDING[3]+INFO_BODY_FONT.get_height()+(INFO_MINI_DIM[1]+INFO_PADDING[3]+100)*ceil(len(self.links)/4)),SRCALPHA,32)
+    def set_links(self, links:list[Info]):
+        self.links=links
+
+    def construct(self):
+        self.links_words_height=0
+        for i in range(ceil(len(self.links)/4)):
+            self.links_words_height += max([len(wrap_text(link.name))*INFO_BODY_FONT.get_height() for link in self.links[4*i:4*i+min(4,len(self.links)-4*i)]])
+        self.display_base:Surface=Surface((INFO_BORDERS[1]-INFO_BORDERS[0],self.body_anchor[1]+self.body_height+INFO_PADDING[2]+2*INFO_PADDING[3]+INFO_BODY_FONT.get_height()+(INFO_MINI_DIM[1]+INFO_PADDING[3]+100)*ceil(len(self.links)/4)+self.links_words_height),SRCALPHA,32)
         self.scrollable=self.display_base.get_height() > WIN_HEIGHT
         self.display_base.fill(SHADES[0])
         draw.rect(self.display_base,SHADES[1],Rect(0,0,INFO_BORDERS[1]-INFO_BORDERS[0],self.body_anchor[1]+self.body_height+INFO_PADDING[2]),border_radius=ROUNDNESS) #first rounded rect layer
@@ -608,21 +616,20 @@ class Info():
             self.links_anchor=(self.body_anchor[0],self.body_anchor[1]+INFO_BODY_FONT.get_height()*i+INFO_PADDING[3])
         self.display_base.blit(INFO_BODY_FONT.render("Included in/ Contains:"),self.links_anchor)
         self.links_anchor=(self.links_anchor[0],self.links_anchor+INFO_PADDING[3]+INFO_BODY_FONT.get_height())
-        carry_over_height=[0]
+        carry_over_height=0
         for i in range(ceil(len(self.links)/4)): #rows
             words_height=0
             for j in range(min(4,len(self.links)-4*i)): #individual links
                 target=self.links[4*i+j]
-                self.display_base.blit(transform.scale(target.image,INFO_MINI_DIM),(self.links_anchor[0]+(INFO_MINI_DIM+LINK_SPACING)*j,self.links_anchor[1]+(INFO_MINI_DIM[1]*INFO_PADDING[3])*i+sum(carry_over_height)))
+                self.display_base.blit(transform.scale(target.image,INFO_MINI_DIM),(self.links_anchor[0]+(INFO_MINI_DIM+LINK_SPACING)*j,self.links_anchor[1]+(INFO_MINI_DIM[1]*INFO_PADDING[3])*i+carry_over_height))
                 words=wrap_text(target.name,INFO_MINI_DIM[0])
                 for k in len(words):
                     self.display_base.blit(INFO_BODY_FONT.render(words[k],True,(255,255,255)),(self.links_anchor[0]+j*(INFO_MINI_DIM[0]+LINK_SPACING)+INFO_MINI_DIM/2-INFO_BODY_FONT.size(words[k])[0]/2,))
-                self.link_rects.append(Rect((self.links_anchor[0]+(INFO_MINI_DIM+LINK_SPACING)*j,self.links_anchor[1]+(INFO_MINI_DIM[1]*INFO_PADDING[3])*i+sum(carry_over_height)),(INFO_MINI_DIM[0],INFO_MINI_DIM[0]+INFO_BODY_FONT.get_height()*len(words))))
-                words_height=max(words_height, INFO_BODY_FONT.get_height()*len(words))
-            carry_over_height.append(words_height)
+                self.link_rects.append(Rect((self.links_anchor[0]+(INFO_MINI_DIM+LINK_SPACING)*j,self.links_anchor[1]+(INFO_MINI_DIM[1]*INFO_PADDING[3])*i+carry_over_height),(INFO_MINI_DIM[0],INFO_MINI_DIM[0]+INFO_BODY_FONT.get_height()*len(words))))
+                words_height=max(words_height,target.miniform_words_height)
+            carry_over_height += words_height
 
     def display(self, surface:Surface):
         surface.blit(self.display_base, (INFO_BORDERS[0],-self.scroll_offset))
 
 print('Module "basic" (game foundations) loaded.')
-quit()

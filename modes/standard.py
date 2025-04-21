@@ -234,19 +234,23 @@ board=Board(8,8,["8","8","8","8","8","8","8","8"],piecesdict=STD_PCS_DICT,initpo
 lock=Rules.lock
 win=Rules.win
 
-pawn_info=None
-bishop_info=None
-knight_info=None
-rook_info=None
-queen_info=None
-king_info=None
-'''
-info=Info("Chess","The most commonly played variant of chess, sometimes also called occidental chess.","Placeholder",join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info])
+pawn_info=Info("Pawn","A basic piece","...",join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,"piece")
+bishop_info=Info("Bishop","A basic piece","...",join(PCS_IMG_DIR,"bishop_w.png"),GREEN_TILE,"piece")
+knight_info=Info("Knight","A basic piece","...",join(PCS_IMG_DIR,"knight_w.png"),GREEN_TILE,"piece")
+rook_info=Info("Rook","A basic piece","THE ROOOOOOOOOOOOK!!!",join(PCS_IMG_DIR,"rook_w.png"),GREEN_TILE,"piece")
+queen_info=Info("Queen","A basic piece","...",join(PCS_IMG_DIR,"queen_w.png"),GREEN_TILE,"piece")
+king_info=Info("King","A basic piece","...",join(PCS_IMG_DIR,"king_w.png"),GREEN_TILE,"piece")
+
+info=Info("Chess","The most commonly played variant of chess, sometimes also called occidental chess.","Placeholder",join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,"mode",[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info])
 info.construct()
 
 piece_infos:list[Info]=[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info]
 for piece_info in piece_infos:
     piece_info.set_links([info])
-    piece_info.construct()'''
+    piece_info.construct()
+
+interpret=Rules.interpret
+singleplayer=True
+multiplayer=False
 
 print('Module "standard" (occidental chess) loaded.')

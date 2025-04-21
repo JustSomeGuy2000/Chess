@@ -32,20 +32,24 @@ POCKET_ANCHORS=([100,1000],[100,100])
 SHADES:list[Colour]=[(40,40,40),(55, 55, 55),(92, 92, 92),(131, 131, 131),(177, 177, 177),(233, 233, 233)]
 GREENS:list[Colour]=[(69,117,60),(129,182,76),(152,193,91),(160,210,96)]
 ORANGE:Colour=(155,168,0)
-WHITE=(255,255,255)
-BLACK=(0,0,0)
+WHITE:Colour=(255,255,255)
+BLACK:Colour=(0,0,0)
 #SHADES=[(17,17,17),(51,51,51),(85,85,85),(119,119,119),(153,153,153)]
 ROUNDNESS=25
 SELECT_COLOUR=ORANGE
 
 INFO_BORDERS=(INFO.current_w/6,5*INFO.current_w/6)
-INFO_PADDING=(10,20,40,20) #left-right, top, bottom, split
-INFO_IMG_DIM=(200,200)
-INFO_MINI_DIM=(200,200)
+INFO_PAD_LR=10
+INFO_PAD_TOP=20
+INFO_PAD_BOTTOM=40
+INFO_PAD_SPLIT=20
+INFO_IMG_DIM=(150,150)
+INFO_MINI_DIM=(75,75)
+INFO_WIDTH=INFO_BORDERS[1]-INFO_BORDERS[0]
 LINK_SPACING=50
 font.init()
 INFO_TITLE_FONT:font.Font=font.Font(join(FNT_IMG_DIR,"bold++.ttf"),70)
-INFO_ALIAS_FONT:font.Font=font.Font(join(FNT_IMG_DIR,"bold+.ttf"),40)
+INFO_ALIAS_FONT:font.Font=font.Font(join(FNT_IMG_DIR,"bold+.ttf"),35)
 INFO_BODY_FONT:font.Font=font.Font(join(FNT_IMG_DIR,"regular.ttf"),30)
 
 GREEN_TILE=Surface(STD_TILEDIM)
@@ -520,6 +524,10 @@ class Rules():
                 return [square for square in all_squares if square not in not_locked]
             else:
                 return ([square for square in all_squares if square not in not_locked], occlude, possible_moves)
+            
+    @staticmethod
+    def interpret():
+        pass
 
 class OptionsBar():
     def __init__(self, parent:object, contains:list[Tile], clickfunc:Callable, board_for:Board):
@@ -561,73 +569,89 @@ def wrap_text(text:str, max:int, font:font.Font) -> list[str]:
     temp=""
     for word in words:
         if font.size(temp+" "+word)[0] <= max:
-            temp += word
+            temp += " "+word
         elif temp == "":
             lines.append(" "+word)
         else:
             lines.append(temp)
             temp=""
+        if words.index(word)+1 == len(words):
+            lines.append(temp)
     return [line[1:] for line in lines]
 
 class Info():
-    def __init__(self, name:str, abstract:str, info:str, img:str, img_bg:str|Surface, links:list[Info]=None):
-        self.name=wrap_text(name, INFO_BORDERS[1]-INFO_BORDERS[0]-3*INFO_PADDING[0]-INFO_IMG_DIM[0], INFO_TITLE_FONT)
-        self.abstract=wrap_text(abstract,INFO_BORDERS[1]-INFO_BORDERS[0]-2*INFO_PADDING[0], INFO_ALIAS_FONT)
-        self.body=wrap_text(info, INFO_BORDERS[1]-INFO_BORDERS[0]-2*INFO_PADDING[0], INFO_BODY_FONT)
+    def __init__(self, name:str, abstract:str, info:str, img:str, img_bg:str|Surface, covers:Literal["mode","piece"], links:list[Info]=None):
+        self.name=name
+        self.abstract=abstract
+        self.body=info
+        self.covers=covers
         if isinstance(img_bg, str):
-            self.image:Surface=transform.scale(image.load(join(TIL_IMG_DIR,img_bg)),INFO_IMG_DIM).convert_alpha()
+            self.image:Surface=transform.scale(image.load(img_bg),INFO_IMG_DIM).convert_alpha()
         else:
-            self.image:Surface=img_bg.convert_alpha()
+            self.image:Surface=transform.scale(img_bg,INFO_IMG_DIM).convert_alpha()
         self.image.blit(transform.scale(image.load(img),INFO_IMG_DIM).convert_alpha(),(0,0))
         self.links=links
-        self.miniform_words_height=len(wrap_text(name,INFO_MINI_DIM[0],INFO_BODY_FONT))*INFO_BODY_FONT.get_height()
         self.scroll_offset=0
         self.scrollable=False
         self.link_rects:list[Rect]=[]
-
-        self.name_height=INFO_TITLE_FONT.get_height()*len(self.name)
-        self.abstract_height=INFO_ALIAS_FONT.get_height()*len(self.abstract)
-        self.body_height=INFO_BODY_FONT.get_height()*len(self.body)
-
-        self.image_pos:Coord=(INFO_BORDERS[0]+INFO_PADDING[0],INFO_PADDING[1]+self.name_height/2-INFO_IMG_DIM[1]/2)
-        self.title_anchor:Coord=(INFO_BORDERS[0]+INFO_PADDING[0]*2+INFO_IMG_DIM[0])
-        self.abstract_anchor:Coord=(INFO_BORDERS[0]+INFO_PADDING[0],INFO_PADDING[1]+self.name_height+INFO_PADDING[3])
-        self.body_anchor:Coord=(self.abstract_anchor[0],self.abstract_anchor[1]+self.abstract_height+2*INFO_PADDING[2])
 
     def set_links(self, links:list[Info]):
         self.links=links
 
     def construct(self):
-        self.links_words_height=0
-        for i in range(ceil(len(self.links)/4)):
-            self.links_words_height += max([len(wrap_text(link.name))*INFO_BODY_FONT.get_height() for link in self.links[4*i:4*i+min(4,len(self.links)-4*i)]])
-        self.display_base:Surface=Surface((INFO_BORDERS[1]-INFO_BORDERS[0],self.body_anchor[1]+self.body_height+INFO_PADDING[2]+2*INFO_PADDING[3]+INFO_BODY_FONT.get_height()+(INFO_MINI_DIM[1]+INFO_PADDING[3]+100)*ceil(len(self.links)/4)+self.links_words_height),SRCALPHA,32)
-        self.scrollable=self.display_base.get_height() > WIN_HEIGHT
-        self.display_base.fill(SHADES[0])
-        draw.rect(self.display_base,SHADES[1],Rect(0,0,INFO_BORDERS[1]-INFO_BORDERS[0],self.body_anchor[1]+self.body_height+INFO_PADDING[2]),border_radius=ROUNDNESS) #first rounded rect layer
-        draw.rect(self.display_base,SHADES[2],Rect(0,0,INFO_BORDERS[1]-INFO_BORDERS[0],self.abstract_anchor[1]+self.abstract_height+INFO_PADDING[2]),border_radius=ROUNDNESS) #second rounded rect layer, for title and abstract
-        self.display_base.blit(self.image,self.image_pos)
-        for i in range(len(self.name)):
-            self.display_base.blit(INFO_TITLE_FONT.render(self.name[i],True,(255,255,255)),(self.title_anchor[0],self.title_anchor[1]+INFO_TITLE_FONT.get_height()*i))
-        for i in range(len(self.abstract)):
-            self.display_base.blit(INFO_ALIAS_FONT.render(self.abstract[i],True,(255,255,255)),(self.abstract_anchor[0],self.abstract_anchor[1]+INFO_ALIAS_FONT.get_height()*i))
-        for i in range(len(self.body)):
-            self.display_base.blit(INFO_BODY_FONT.render(self.body[i],True,(255,255,255)),(self.body_anchor[0],self.body_anchor[1]+INFO_BODY_FONT.get_height()*i))
-            self.links_anchor=(self.body_anchor[0],self.body_anchor[1]+INFO_BODY_FONT.get_height()*i+INFO_PADDING[3])
-        self.display_base.blit(INFO_BODY_FONT.render("Included in/ Contains:"),self.links_anchor)
-        self.links_anchor=(self.links_anchor[0],self.links_anchor+INFO_PADDING[3]+INFO_BODY_FONT.get_height())
-        carry_over_height=0
-        for i in range(ceil(len(self.links)/4)): #rows
-            words_height=0
-            for j in range(min(4,len(self.links)-4*i)): #individual links
-                target=self.links[4*i+j]
-                self.display_base.blit(transform.scale(target.image,INFO_MINI_DIM),(self.links_anchor[0]+(INFO_MINI_DIM+LINK_SPACING)*j,self.links_anchor[1]+(INFO_MINI_DIM[1]*INFO_PADDING[3])*i+carry_over_height))
-                words=wrap_text(target.name,INFO_MINI_DIM[0])
-                for k in len(words):
-                    self.display_base.blit(INFO_BODY_FONT.render(words[k],True,(255,255,255)),(self.links_anchor[0]+j*(INFO_MINI_DIM[0]+LINK_SPACING)+INFO_MINI_DIM/2-INFO_BODY_FONT.size(words[k])[0]/2,))
-                self.link_rects.append(Rect((self.links_anchor[0]+(INFO_MINI_DIM+LINK_SPACING)*j,self.links_anchor[1]+(INFO_MINI_DIM[1]*INFO_PADDING[3])*i+carry_over_height),(INFO_MINI_DIM[0],INFO_MINI_DIM[0]+INFO_BODY_FONT.get_height()*len(words))))
-                words_height=max(words_height,target.miniform_words_height)
-            carry_over_height += words_height
+        components:dict[str,Surface]={}
+        components["image"]=self.image
+        wrapped_title=wrap_text(self.name,INFO_WIDTH-INFO_IMG_DIM[0]-2*INFO_PAD_LR-INFO_PAD_SPLIT,INFO_TITLE_FONT)
+        components["title"]=Surface((INFO_WIDTH-INFO_IMG_DIM[0]-2*INFO_PAD_LR-INFO_PAD_SPLIT,len(wrapped_title)*INFO_TITLE_FONT.get_height()),SRCALPHA,32)
+        for i in range(len(wrapped_title)):
+            components["title"].blit(INFO_TITLE_FONT.render(wrapped_title[i],True,WHITE),(0,INFO_TITLE_FONT.get_height()*i))
+        wrapped_abstract=wrap_text(self.abstract,INFO_WIDTH-2*INFO_PAD_LR,INFO_ALIAS_FONT)
+        components["abstract"]=Surface((INFO_WIDTH-2*INFO_PAD_LR,len(wrapped_abstract)*INFO_ALIAS_FONT.get_height()),SRCALPHA,32)
+        for i in range(len(wrapped_abstract)):
+            components["abstract"].blit(INFO_ALIAS_FONT.render(wrapped_abstract[i],True,WHITE),(0,INFO_ALIAS_FONT.get_height()*i))
+        components["top bg"]=Surface((INFO_WIDTH,INFO_PAD_TOP+max(INFO_IMG_DIM[1],components["title"].get_height())+INFO_PAD_SPLIT+components["abstract"].get_height()+INFO_PAD_BOTTOM),SRCALPHA,32)
+        components["top bg"].fill(SHADES[1])
+        draw.rect(components["top bg"],SHADES[2],components["top bg"].get_rect(),border_radius=ROUNDNESS)
+        wrapped_body=wrap_text(self.body,INFO_WIDTH-2*INFO_PAD_LR,INFO_BODY_FONT)
+        components["body"]=Surface((INFO_WIDTH-2*INFO_PAD_LR,len(wrapped_body)*INFO_BODY_FONT.get_height()),SRCALPHA,32)
+        for i in range(len(wrapped_body)):
+            components["body"].blit(INFO_BODY_FONT.render(wrapped_body[i],True,WHITE),(0,INFO_BODY_FONT.get_height()*i))
+        if self.covers == "mode":
+            components["qualifier"]=INFO_BODY_FONT.render("Contains:",True,WHITE)
+        else:
+            components["qualifier"]=INFO_BODY_FONT.render("Is included in:",True,WHITE)
+        components["link rows"]=[]
+        for i in range(ceil(len(self.links)/8)):
+            num_in_row=min(8,len(self.links)-8*i)
+            max_text_height=0
+            for j in range(num_in_row):
+                max_text_height=max(max_text_height,len(wrap_text(self.links[8*i+j].name,INFO_MINI_DIM[0],INFO_BODY_FONT))*INFO_BODY_FONT.get_height())
+            row_surface=Surface((INFO_WIDTH-2*INFO_PAD_LR,INFO_MINI_DIM[1]+max_text_height))
+            row_surface.fill(SHADES[1])
+            for j in range(num_in_row):
+                row_surface.blit(transform.scale(self.links[8*i+j].image,INFO_MINI_DIM),((INFO_MINI_DIM[0]+LINK_SPACING)*j,0))
+                wrapped_name=wrap_text(self.links[8*i+j].name,INFO_MINI_DIM[0],INFO_BODY_FONT)
+                for k in range(len(wrapped_name)):
+                    row_surface.blit(INFO_BODY_FONT.render(wrapped_name[k],True,WHITE),((INFO_MINI_DIM[0]+LINK_SPACING)*j,INFO_MINI_DIM[1]+INFO_BODY_FONT.get_height()*k))
+            components["link rows"].append(row_surface)
+        self.display_base=Surface((INFO_WIDTH,components["top bg"].get_height()+INFO_PAD_BOTTOM+components["body"].get_height()+2*INFO_PAD_SPLIT+components["qualifier"].get_height()+sum([row.get_height() for row in components["link rows"]])+INFO_PAD_SPLIT*len(components["link rows"])+INFO_PAD_BOTTOM),SRCALPHA,32)
+        self.display_base.fill(SHADES[1])
+        self.display_base.blit(components["top bg"],(0,0))
+        if components["title"].get_height() <= INFO_IMG_DIM[1]:
+            self.display_base.blit(self.image,(INFO_PAD_LR,INFO_PAD_TOP))
+            self.display_base.blit(components["title"],(INFO_PAD_LR+INFO_IMG_DIM[0]+INFO_PAD_SPLIT,INFO_PAD_TOP+INFO_IMG_DIM[1]/2-components["title"].get_height()/2))
+        else:
+            self.display_base.blit(components["title"],(INFO_PAD_LR+INFO_IMG_DIM[0]+INFO_PAD_SPLIT,INFO_PAD_TOP))
+            self.display_base.blit(self.image,(INFO_PAD_LR,INFO_PAD_TOP+components["title"].get_height()/2-INFO_IMG_DIM[1]/2))
+        self.display_base.blit(components["abstract"],(INFO_PAD_LR,INFO_PAD_TOP+max(INFO_IMG_DIM[1],components["title"].get_height())+INFO_PAD_SPLIT))
+        body_y_anchor=components["top bg"].get_height()+INFO_PAD_SPLIT
+        self.display_base.blit(components["body"],(INFO_PAD_LR,body_y_anchor))
+        body_y_anchor += components["body"].get_height()+INFO_PAD_SPLIT
+        self.display_base.blit(components["qualifier"],(INFO_PAD_LR,body_y_anchor))
+        body_y_anchor += components["qualifier"].get_height()+INFO_PAD_SPLIT
+        for i in range(len(components["link rows"])):
+            self.display_base.blit(components["link rows"][i],(INFO_PAD_LR,body_y_anchor))
+            body_y_anchor += components["link rows"][i].get_height()+INFO_PAD_SPLIT
 
     def display(self, surface:Surface):
         surface.blit(self.display_base, (INFO_BORDERS[0],-self.scroll_offset))

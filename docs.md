@@ -63,3 +63,26 @@ Synchronous chess?
 Viennese chess
 Taikyoku shogi
 Grant Acedrex
+
+# Code structure:
+Menus have three levels, in decreasing order of relevance:
+v.menu
+v.submenu
+v.additional
+
+Menus:
+"main"
+--None
+
+"modes"
+--"main"
+--"players"
+
+"almanac"
+--"modes"
+    --[dynamic]
+--"pieces"
+    --[dynamic]
+
+"game"
+--None

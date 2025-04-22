@@ -13,7 +13,7 @@ font.init()
 
 class WhitePawn(Piece):
     def __init__(self):
-        super().__init__("Pawn",1,0,"pawn_w.png")
+        super().__init__("Pawn",1,0,join(PCS_IMG_DIR,"pawn_w.png"))
         self.en_passantable=False
         self.moved=False
 
@@ -63,7 +63,7 @@ class WhitePawn(Piece):
     
 class BlackPawn(Piece):
     def __init__(self):
-        super().__init__("Pawn",1,1,"pawn_b.png")
+        super().__init__("Pawn",1,1,join(PCS_IMG_DIR,"pawn_b.png"))
         self.en_passantable=False
         self.moved=False
 
@@ -113,7 +113,7 @@ class BlackPawn(Piece):
     
 class WhiteBishop(Piece):
     def __init__(self):
-        super().__init__("Bishop",3,0,"bishop_w.png")
+        super().__init__("Bishop",3,0,join(PCS_IMG_DIR,"bishop_w.png"))
 
     def moves(self, board:Board):
         return m.diagonals((board.height,1,1,board.width),(inf,inf,inf,inf),self.parent.boardpos,board)
@@ -126,7 +126,7 @@ class WhiteBishop(Piece):
     
 class BlackBishop(Piece):
     def __init__(self):
-        super().__init__("Bishop",3,1,"bishop_b.png")
+        super().__init__("Bishop",3,1,join(PCS_IMG_DIR,"bishop_b.png"))
         self.moves=WhiteBishop.moves
         self.capture_squares=WhiteBishop.capture_squares
         self.move_to=WhiteBishop.move_to
@@ -134,7 +134,7 @@ class BlackBishop(Piece):
     
 class WhiteKnight(Piece):
     def __init__(self):
-        super().__init__("Knight",3,0,"knight_w.png")
+        super().__init__("Knight",3,0,join(PCS_IMG_DIR,"knight_w.png"))
 
     def moves(self, board:Board):
         return m.l_shape((board.height,1,1,board.width),1,self.parent.boardpos,board,2,1)
@@ -147,7 +147,7 @@ class WhiteKnight(Piece):
     
 class BlackKnight(Piece):
     def __init__(self):
-        super().__init__("Knight",3,1,"knight_b.png")
+        super().__init__("Knight",3,1,join(PCS_IMG_DIR,"knight_b.png"))
         self.moves=WhiteKnight.moves
         self.capture_squares=WhiteKnight.capture_squares
         self.move_to=WhiteKnight.move_to
@@ -155,7 +155,7 @@ class BlackKnight(Piece):
 
 class WhiteRook(Piece):
     def __init__(self):
-        super().__init__("Rook",5,0,"rook_w.png")
+        super().__init__("Rook",5,0,join(PCS_IMG_DIR,"rook_w.png"))
         self.has_moved=False
 
     def moves(self, board):
@@ -173,7 +173,7 @@ class WhiteRook(Piece):
     
 class BlackRook(Piece):
     def __init__(self):
-        super().__init__("Rook",5,1,"rook_b.png")
+        super().__init__("Rook",5,1,join(PCS_IMG_DIR,"rook_b.png"))
         self.moves=WhiteRook.moves
         self.capture_squares=WhiteRook.capture_squares
         self.move_to=WhiteRook.move_to
@@ -181,7 +181,7 @@ class BlackRook(Piece):
 
 class WhiteQueen(Piece):
     def __init__(self):
-        super().__init__("Queen",9,0,"queen_w.png")
+        super().__init__("Queen",9,0,join(PCS_IMG_DIR,"queen_w.png"))
 
     def moves(self, board:Board):
         return itertools.chain(m.diagonals((8,1,1,8),(inf,inf,inf,inf),self.parent.boardpos,board),m.orthogonals((8,1,1,8),(inf,inf,inf,inf),self.parent.boardpos,board))
@@ -197,7 +197,7 @@ class WhiteQueen(Piece):
     
 class BlackQueen(Piece):
     def __init__(self):
-        super().__init__("Queen",9,1,"queen_b.png")
+        super().__init__("Queen",9,1,join(PCS_IMG_DIR,"queen_b.png"))
         self.moves=WhiteQueen.moves
         self.capture_squares=WhiteQueen.capture_squares
         self.move_to=WhiteQueen.move_to
@@ -205,7 +205,7 @@ class BlackQueen(Piece):
 
 class WhiteKing(Piece):
     def __init__(self):
-        super().__init__("King",inf,0,"king_w.png",True)
+        super().__init__("King",inf,0,join(PCS_IMG_DIR,"king_w.png"),True)
 
     def moves(self, board):
         return itertools.chain(m.diagonals((8,1,1,8),(1,1,1,1),self.parent.boardpos,board),m.orthogonals((8,1,1,8),(1,1,1,1),self.parent.boardpos,board))
@@ -221,7 +221,7 @@ class WhiteKing(Piece):
     
 class BlackKing(Piece):
     def __init__(self):
-        super().__init__("King",inf,1,"king_b.png")
+        super().__init__("King",inf,1,join(PCS_IMG_DIR,"king_b.png"),True)
         self.moves=WhiteKing.moves
         self.capture_squares=WhiteKing.capture_squares
         self.move_to=WhiteKing.move_to
@@ -234,14 +234,14 @@ board=Board(8,8,["8","8","8","8","8","8","8","8"],piecesdict=STD_PCS_DICT,initpo
 lock=Rules.lock
 win=Rules.win
 
-pawn_info=Info("Pawn","A basic piece","...",join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,"piece")
-bishop_info=Info("Bishop","A basic piece","...",join(PCS_IMG_DIR,"bishop_w.png"),GREEN_TILE,"piece")
-knight_info=Info("Knight","A basic piece","...",join(PCS_IMG_DIR,"knight_w.png"),GREEN_TILE,"piece")
-rook_info=Info("Rook","A basic piece","THE ROOOOOOOOOOOOK!!!",join(PCS_IMG_DIR,"rook_w.png"),GREEN_TILE,"piece")
-queen_info=Info("Queen","A basic piece","...",join(PCS_IMG_DIR,"queen_w.png"),GREEN_TILE,"piece")
-king_info=Info("King","A basic piece","...",join(PCS_IMG_DIR,"king_w.png"),GREEN_TILE,"piece")
+pawn_info=Info("Pawn","The most numerous piece on the board.","Little guys that usually can only go one step forward, but can take two steps on their first move. They capture differently, doing so one step forward diagonally in either direction. Can promote on the last row of the board. Experienced players can also make use of the abstruse method termed \"en passant\".",join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,"piece")
+bishop_info=Info("Bishop","Snipers that really come into play after the early-game.","Moves and captures infinitely diagonally. A useful piece for sniping and plugging gaps, but its sieve-like capture structure and inability to move to more than half the squares on the board mean it is not as useful alone.",join(PCS_IMG_DIR,"bishop_w.png"),GREEN_TILE,"piece")
+knight_info=Info("Knight","A piece with a truly odd movement pattern, when you think about it.","Moves in an L-shape of 2 tiles then 1 tile (or vice versa). Has the ability to teleport straight to the end of its movement. Is useful in the early game due to its mobility, but drops off later.",join(PCS_IMG_DIR,"knight_w.png"),GREEN_TILE,"piece")
+rook_info=Info("Rook","The shining star of the famed (?) \"twin towers\" strategy.","One of the most powerful pieces on the board due to its ability to entirely block off ranks and files. Moves and captures infinitely in the orthogonal directions.",join(PCS_IMG_DIR,"rook_w.png"),GREEN_TILE,"piece")
+queen_info=Info("Queen","In a shocking move for the time, the creators of chess made a woman the most powerful piece.","The most powerful and versatile piece on the board. Has the combined traits of the bishop and the rook. Tends to be blundered.",join(PCS_IMG_DIR,"queen_w.png"),GREEN_TILE,"piece")
+king_info=Info("King","Useless aside from decorative value, similar to many actual kings.","The crux of the game. Threats against it need to be immediately answered, and trapping it ends the game whether by stalemate or checkmate. Can only move a single, pitiful, tile in any direction around it.",join(PCS_IMG_DIR,"king_w.png"),GREEN_TILE,"piece")
 
-info=Info("Chess","The most commonly played variant of chess, sometimes also called occidental chess.","Placeholder",join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,"mode",[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info])
+info=Info("Chess","The most commonly played variant of chess.","The form of chess known by billions worldwide. Its kinda boring, actually. Fun fact: can also be called \"occidental\" chess. Just learnt a new word, didn't ya?",join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,"mode",[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info])
 info.construct()
 
 piece_infos:list[Info]=[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info]
@@ -250,7 +250,7 @@ for piece_info in piece_infos:
     piece_info.construct()
 
 interpret=Rules.interpret
-singleplayer=True
-multiplayer=False
+local_play=True
+online_play=False
 
 print('Module "standard" (occidental chess) loaded.')

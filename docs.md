@@ -1,4 +1,6 @@
 # To-do:
+Add scrolling to Almanac
+Timer, timer options
 Checkmate checking
 Implement a function to manually set the current player, targetable squares, and target (makes cheese-like functions easier)
 Extra move options (for variants like beirut chess, where there is an option to detonate)

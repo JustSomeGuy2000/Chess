@@ -23,7 +23,7 @@ WIN_WIDTH=INFO.current_w
 WIN_HEIGHT=INFO.current_h-80
 screen=display.set_mode((WIN_WIDTH,WIN_HEIGHT))
 
-STD_TILEDIM=(50,50)
+STD_TILEDIM=(100,100)
 PCS_IMG_DIR=join("assets","sprites","pieces")
 TIL_IMG_DIR=join("assets","sprites","tiles")
 FNT_IMG_DIR=join("assets","montserrat")
@@ -68,7 +68,7 @@ class Piece(sprite.Sprite):
         self.value=value
         self.colour=colour
         self.initpos=initpos
-        self.image=transform.scale(image.load(join(PCS_IMG_DIR,sprite)),STD_TILEDIM).convert_alpha()
+        self.image=transform.scale(image.load(sprite),STD_TILEDIM).convert_alpha()
         self.check_target=check_target #whether the piece is a target for check-like conditions
         self.parent:Tile|None=None
         self.promotion:OptionsBar|None=None
@@ -124,12 +124,17 @@ class Tile():
     def __str__(self):
         return f"<Tile at ({str(self.boardpos[0]+1)},{str(self.boardpos[1]+1)}) containing {str(self.piece)}>"
 
-    def display(self, surface:Surface):
-        surface.blit(self.piece.image, (self.rect.x,self.rect.y))
+    def display(self, surface:Surface, mp:Coord, mu:Coord):
+        if isinstance(self.piece, Piece):
+            surface.blit(self.piece.image, (self.rect.x,self.rect.y))
         if self.move_target:
             draw.circle(surface,SELECT_COLOUR,self.rect.center,3)
-        if self.capture_target:
+        if self.capture_target or self.rect.collidepoint(mp):
             draw.rect(surface,SELECT_COLOUR,self.rect,5)
+        if self.rect.collidepoint(mp) and mu:
+            return self
+        else:
+            return None
 
 class Board():
     '''Everything to do with the construction and management of boards.'''
@@ -179,6 +184,7 @@ class Board():
                 count=i+1
                 result.append(temp)
         self.full_layout=result
+        self.rect=Rect(anchor[0],anchor[1],self.tile_dim[0]*self.width,self.tile_dim[1]*self.height)
     
     def populate(self):
         full_board=self.full_layout
@@ -219,15 +225,19 @@ class Board():
         else:
             self.image=whole.convert_alpha()
 
-    def display(self, surface:Surface):
+    def display(self, surface:Surface, mp:Coord, mu:Coord):
         if not isinstance(self.image, Surface):
             raise TypeError("No display image has been set.")
         surface.blit(self.image,self.anchor)
+        perm=None
         for row in self.full_layout:
             for tile in row:
-                tile.display(surface)
+                temp=tile.display(surface,mp,mu)
+                if temp != None:
+                    perm=temp
         if isinstance(self.active_options, OptionsBar):
             self.active_options.display(surface, (self.anchor[0]+self.tile_dim*self.width+10,self.anchor[1]+self.tile_dim*self.height/2-self.active_options.height/2))
+        return temp
     
 class Movement():
     @staticmethod
@@ -574,7 +584,7 @@ def wrap_text(text:str, max:int, font:font.Font) -> list[str]:
             lines.append(" "+word)
         else:
             lines.append(temp)
-            temp=""
+            temp=" "+word
         if words.index(word)+1 == len(words):
             lines.append(temp)
     return [line[1:] for line in lines]
@@ -593,7 +603,6 @@ class Info():
         self.links=links
         self.scroll_offset=0
         self.scrollable=False
-        self.link_rects:list[Rect]=[]
 
     def set_links(self, links:list[Info]):
         self.links=links

@@ -1,4 +1,8 @@
 # To-do:
+Rewrite diagonals so it doesnt stop when the steps encounter a piece.
+Fix Knight
+Fix captures
+Add higher-level features (en passant, promotion, generalisation of options bar)
 Add scrolling to Almanac
 Timer, timer options
 Checkmate checking

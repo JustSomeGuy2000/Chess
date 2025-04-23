@@ -45,6 +45,7 @@ class Game():
         self.a_p_offset=0
         self.timer:tuple[int,int,int]=(0,0,0)
         self.selected:Tile|None=None
+        self.prev_selected:Tile|None=None
 
     def begin(self):
         self.timer=(int(time_field.text),int(inc_field.text),int(del_field.text))
@@ -350,7 +351,22 @@ while v.running:
         back_button.display(v.screen,mp,md,mu)
     
     elif v.menu == "game":
-        v.selected=v.mode.board.display(v.screen,mp,mu)
+        v.prev_selected=v.selected
+        temp=v.mode.board.display(v.screen,mp,mu)
+        if temp != None or mu:
+            v.selected=temp
+        if mu:
+            if v.selected != None and v.selected.move_target:
+                v.prev_selected.piece.move_to(v.selected)
+                v.prev_selected=None
+                v.selected=None
+            v.mode.board.scrub()
+            if v.selected != None:
+                if isinstance(v.selected.piece,b.Piece):
+                    for tile in v.selected.piece.moves(v.mode.board):
+                        v.mode.board.full_layout[tile[1]][tile[0]].move_target=True
+                    for tile in v.selected.piece.capture_squares(v.mode.board):
+                        v.mode.board.full_layout[tile[1]][tile[0]].capture_target=True
     
     display.update()
     v.clock.tick(60)

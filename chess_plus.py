@@ -30,7 +30,6 @@ class Game():
         self.submenu:str="main"
         self.last_menu:str=None
         self.mode=None
-        self.board:b.Board|None=None
         self.mode_infos:dict[str,b.Info]={}
         self.mode_info_buttons:list[Button]=[]
         self.mode_choose_buttons:list[Button]=[]
@@ -73,6 +72,8 @@ class Gamemode():
         self.interpret:Callable
         self.local_play:bool
         self.online_play:bool
+        self.after_move:Callable[[b.Board,int],None]
+        self.end_of_turn:Callable[[b.Board],None]
         raise RuntimeError("This is a utility placeholder class that is not supposed to be instantiated. This is why you shouldn't try.")
 
 class Button():
@@ -353,15 +354,19 @@ while v.running:
     elif v.menu == "game":
         v.prev_selected=v.selected
         temp=v.mode.board.display(v.screen,mp,mu)
-        if temp != None or mu:
-            v.selected=temp
         if mu:
-            if v.selected != None and v.selected.move_target:
-                v.prev_selected.piece.move_to(v.selected)
+            if temp != None: #select a tile
+                v.selected=temp
+            if temp == False or temp == None: #deselect a tile
+                v.selected=None
+            if v.selected != None and (v.selected.move_target or v.selected.capture_target): #move a piece
+                v.prev_selected.piece.move_to(v.selected,v.mode.board)
+                v.selected.selected=False
                 v.prev_selected=None
                 v.selected=None
+                v.mode.after_move(v.mode.board,v.mode.board.turn)
             v.mode.board.scrub()
-            if v.selected != None:
+            if v.selected != None: #redraw board state
                 if isinstance(v.selected.piece,b.Piece):
                     for tile in v.selected.piece.moves(v.mode.board):
                         v.mode.board.full_layout[tile[1]][tile[0]].move_target=True

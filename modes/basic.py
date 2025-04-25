@@ -7,6 +7,7 @@ from os.path import join
 from typing import Literal
 from pygame import *
 from collections.abc import Generator, Callable, Iterable
+import itertools
 
 type Path=str
 type Coord=tuple[int,int]
@@ -107,7 +108,7 @@ class Piece(sprite.Sprite):
         pass
 
 class Tile():
-    '''A container for tile information'''
+    '''A container for tile information. Is True if there it contains a piece, is False otherwise'''
     def __init__(self, boardcoord:BoardCoord, base:Literal["empty", "void"], rect:Rect, colour:Literal[0,1]|None=None, piece:Piece=None):
         self.boardpos=boardcoord
         self.base=base
@@ -125,9 +126,15 @@ class Tile():
     
     def __str__(self):
         return f"<Tile at ({str(self.boardpos[0]+1)},{str(self.boardpos[1]+1)}) containing {str(self.piece)}>"
+    
+    def __bool__(self) -> bool:
+        if isinstance(self.piece,Piece):
+            return True
+        else:
+            return False
 
     def display(self, surface:Surface, mp:Coord, mu:Coord) -> Tile|None:
-        '''Display the piece at its position. Returns itself if clicked.'''
+        '''Display the piece at its position. Returns itself if clicked, or False if deselected. Returns None otherwise.'''
         if isinstance(self.piece, Piece): #show piece
             surface.blit(self.piece.image, (self.rect.x,self.rect.y))
         if self.move_target: #if target for move
@@ -139,7 +146,7 @@ class Tile():
             self.selected=False
         if mu and self.rect.collidepoint(mp) and self.selected: #if clicked again
             self.selected=False
-            return None
+            return False
         if self.rect.collidepoint(mp) and mu and (isinstance(self.piece,Piece) or self.capture_target or self.move_target): #if clicked
             self.selected=True
             return self
@@ -161,6 +168,8 @@ class Board():
         self.anchor:Coord|None=None #the display anchor
         self.blackpocket:Pocket=Pocket(POCKET_ANCHORS[1],STD_TILEDIM)
         self.whitepocket:Pocket=Pocket(POCKET_ANCHORS[0],STD_TILEDIM)
+        self.turn:int=0
+        self.turn_number:int=0
 
     def construct(self, anchor:Coord):
         '''Creates a list of lists representing the full board without intial pieces placed. Spaces with tiles are called "empty". For non-quadrilateral boards, non-tile spaces are called "void".'''
@@ -256,6 +265,25 @@ class Board():
                 tile.move_target=False
                 tile.capture_target=False
                 tile.locked=[False,False,False,False]
+
+    def progress_turn(self):
+        self.turn_number += 1
+        self.turn=self.turn_number%2
+
+    def get(self, coord:BoardCoord|int, coord2:int=None) -> Tile|Literal[False]:
+        '''Get a board tile using its board coordinates. Returns False if the Tile deson't.'''
+        if isinstance(coord,BoardCoord):
+            try:
+                return self.full_layout[coord[1]][coord[0]]
+            except IndexError:
+                return False
+        elif isinstance(coord,int) and isinstance(coord2,int):
+            try:
+                return self.full_layout[coord2][coord]
+            except IndexError:
+                return False
+        else:
+            raise TypeError("Cannot access board position based on these arguments.")
     
 class Movement():
     @staticmethod
@@ -277,35 +305,32 @@ class Movement():
         return [entry for entry in gen]
     
     @staticmethod
-    def backward(max_depth:int, limit:int, coord:BoardCoord, board:Board) -> Generator:
+    def line(dir:int, step:int, max:int, limit:int, coord:BoardCoord, board:Board) -> Generator:
+        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+            return
         count=0
-        while (coord[1]+count+1) <= max_depth and count < limit and board.full_layout[coord[1]+count+1][coord[0]].piece == None:
-            count += 1
-            yield (coord[0],coord[1]+count)
-        return
-
+        max+=copysign(1,step)
+        coord=list(coord)
+        coord[dir] += step
+        while coord[dir] != max and count < limit and board.full_layout[coord[1]][coord[0]].piece == None:
+            count+=1
+            yield coord
+            coord[dir] += step
+    
     @staticmethod
-    def forward(max_height:int, limit:int, coord:BoardCoord, board:Board) -> Generator:
+    def diagonal(step_x:int, step_y:int, max_x:int, max_y:int, limit:int, coord:BoardCoord, board:Board) -> Generator:
+        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+            return
         count=0
-        while (coord[1]-count-1) >= max_height and count < limit and board.full_layout[coord[1]-count-1][coord[0]].piece == None:
+        max_x+=int(copysign(1,step_x))
+        max_y+=int(copysign(1,step_y))
+        next_x=coord[0]+int(copysign(count+1,step_x))
+        next_y=coord[1]+int(copysign(count+1,step_y))
+        while next_x != max_x and next_y != max_y and count < limit and board.full_layout[next_y][next_x].piece == None:
             count += 1
-            yield (coord[0],coord[1]-count)
-        return
-
-    @staticmethod
-    def left(max_left:int, limit:int, coord:BoardCoord, board:Board) -> Generator:
-        count=0
-        while (coord[0]-count-1) >= max_left and count < limit and board.full_layout[coord[1]][coord[0]-count-1].piece == None:
-            count += 1
-            yield (coord[0]-count,coord[1])
-        return
-
-    @staticmethod
-    def right(max_right:int, limit:int, coord:BoardCoord, board:Board) -> Generator:
-        count=0
-        while (coord[0]+count+1) <= max_right and count < limit and board.full_layout[coord[1]][coord[0]+count+1].piece == None:
-            count += 1
-            yield (coord[0]+count,coord[1])
+            yield (next_x,next_y)
+            next_x=coord[0]+int(copysign(count+1,step_x))
+            next_y=coord[1]+int(copysign(count+1,step_y))
         return
     
     @staticmethod
@@ -329,40 +354,30 @@ class Movement():
     @staticmethod
     def orthogonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:BoardCoord, board:Board) -> Generator:
         '''Forward, backward, left, right, in that order'''
-        for entry in Movement.backward(maxes[0],limits[0],coord,board):
-            yield entry
-        for entry in Movement.forward(maxes[1],limits[1],coord,board):
-            yield entry
-        for entry in Movement.left(maxes[2],limits[2],coord,board):
-            yield entry
-        for entry in Movement.right(maxes[3],limits[3],coord,board):
-            yield entry
+        return itertools.chain(Movement.line(1,-1,maxes[0],limits[0],coord,board),Movement.line(1,1,maxes[1],limits[1],coord,board),Movement.line(0,-1,maxes[2],limits[2],coord,board),Movement.line(0,1,maxes[3],limits[3],coord,board))
 
     @staticmethod
     def diagonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:BoardCoord, board:Board) -> Generator:
         '''Inputs: top, bottom, left, right\n
         Outputs: top-right, top-left, bottom-left, bottom-right'''
-        for entry in Movement.compound(maxes[3],maxes[0],limits[3],limits[0],coord,Movement.right,Movement.backward, board):
-            yield entry
-        for entry in Movement.compound(maxes[2],maxes[0],limits[2],limits[0],coord,Movement.left,Movement.backward, board):
-            yield entry
-        for entry in Movement.compound(maxes[2],maxes[1],limits[2],limits[1],coord,Movement.left,Movement.forward, board):
-            yield entry
-        for entry in Movement.compound(maxes[3],maxes[1],limits[3],limits[1],coord,Movement.right,Movement.forward, board):
-            yield entry
+        return itertools.chain(Movement.diagonal(1,-1,maxes[3],maxes[0],limits[0],coord,board),Movement.diagonal(-1,-1,maxes[2],maxes[0],limits[1],coord,board),Movement.diagonal(-1,1,maxes[2],maxes[1],limits[2],coord,board),Movement.diagonal(1,1,maxes[3],maxes[1],limits[3],coord,board))
     
     @staticmethod
     def l_shape(max:tuple[int,int,int,int], limit:int, coord:BoardCoord, board:Board, lenx:int, leny:int) -> Generator:
         '''Maxes are forward, backward, left, right, in that order.'''
+        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+            return
         units=[(leny,lenx),(leny,-lenx),(-leny,lenx),(-leny,-lenx),(lenx,leny),(lenx,-leny),(-lenx,leny),(-lenx,-leny)]
-        for i in range(limit):
-            for combo in units:
-                if max[2] <= coord[0]+combo[0]*i <= max[3] and max[1] <= coord[1]+combo[1]*i <= max[0] and board.full_layout[coord[1]+combo[1]*i][coord[0]+combo[0]*i].piece == None:
-                    yield (coord[0]+combo[0]*i,coord[1]+combo[1]*i)
-        return
+        for combo in units:
+            for i in range(limit):
+                next_val=(coord[0]+combo[0]*i,coord[1]+combo[1]*i)
+                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and board.full_layout[next_val[0]][next_val[1]].piece == None:
+                    yield next_val
 
     @staticmethod
-    def anywhere(board:Board):
+    def anywhere(board:Board, coord:BoardCoord):
+        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+            return
         height=len(board.full_layout)
         width=len(board.full_layout[0])
         for y in range(height):
@@ -372,60 +387,40 @@ class Movement():
 
 class Capture():
     @staticmethod
-    def forward(max_height:int, limit:int, coord:BoardCoord, board:Board, col:int, hypo:bool=False) -> Generator:
+    def line(dir:int, step:int, max:int, limit:int, coord:BoardCoord, board:Board, col:int, hypo:bool=False) -> Generator:
+        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+            return
         count=0
-        while (coord[1]+count+1) <= max_height and count <= limit:
-            count += 1
-            if hypo:
-                if board.full_layout[coord[1]+count][coord[0]].piece != None and board.full_layout[coord[1]+count][coord[0]].piece == col:
-                    break
-                yield (coord[0],coord[1]+count)
-            if board.full_layout[coord[1]+count][coord[0]].piece != None and board.full_layout[coord[1]+count][coord[0]].piece == col:
-                yield (coord[0],coord[1]+count)
-                break
-        return
-
+        max+=copysign(1,step)
+        coord=list(coord)
+        coord[dir] += step
+        while coord[dir] != max and count < limit:
+            count+=1
+            if (board.full_layout[coord[1]][coord[0]].piece != None and board.full_layout[coord[1]][coord[0]].piece.colour != col) or hypo:
+                yield coord
+                return
+            elif board.full_layout[coord[1]][coord[0]].piece != None and board.full_layout[coord[1]][coord[0]].piece.colour == col:
+                return
+            coord[dir] += step
+    
     @staticmethod
-    def backward(max_depth:int, limit:int, coord:BoardCoord, board:Board, col:int, hypo:bool=False) -> Generator:
+    def diagonal(step_x:int, step_y:int, max_x:int, max_y:int, limit:int, coord:BoardCoord, board:Board, col:int, hypo:bool=False) -> Generator:
+        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+            return
         count=0
-        while (coord[1]-count-1) >= max_depth and count <= limit:
+        max_x+=int(copysign(1,step_x))
+        max_y+=int(copysign(1,step_y))
+        next_x=coord[0]+int(copysign(count+1,step_x))
+        next_y=coord[1]+int(copysign(count+1,step_y))
+        while next_x != max_x and next_y != max_y and count < limit:
             count += 1
-            if hypo:
-                if board.full_layout[coord[1]-count][coord[0]].piece != None and board.full_layout[coord[1]-count][coord[0]].piece == col:
-                    break
-                yield (coord[0],coord[1]-count)
-            if board.full_layout[coord[1]-count][coord[0]].piece != None and board.full_layout[coord[1]-count][coord[0]].piece != col:
-                yield (coord[0],coord[1]-count)
-                break
-        return
-
-    @staticmethod
-    def left(max_left:int, limit:int, coord:BoardCoord, board:Board, col:int, hypo:bool=False) -> Generator:
-        count=0
-        while (coord[0]-count-1) >= max_left and count <= limit:
-            count += 1
-            if hypo:
-                if board.full_layout[coord[1]][coord[0]-count].piece != None and board.full_layout[coord[1]][coord[0]-count].piece.colour == col:
-                    break
-                yield (coord[0]-count,coord[1])
-            if board.full_layout[coord[1]][coord[0]-count].piece != None and board.full_layout[coord[1]][coord[0]-count].piece.colour != col:
-                yield (coord[0]-count,coord[1])
-                break
-        return
-
-    @staticmethod
-    def right(max_right:int, limit:int, coord:BoardCoord, board:Board, col:int, hypo:bool=False) -> Generator:
-        count=0
-        while (coord[0]+count+1) <= max_right and count <= limit:
-            count += 1
-            if hypo:
-                if board.full_layout[coord[1]][coord[0]+count].piece != None and board.full_layout[coord[1]][coord[0]+count].piece.colour == col:
-                    break
-                yield (coord[0]+count,coord[1])
-            if board.full_layout[coord[1]][coord[0]+count].piece != None and board.full_layout[coord[1]][coord[0]+count].piece.colour != col:
-                yield (coord[0]+count,coord[1])
-                break
-        return
+            if (board.full_layout[next_y][next_x].piece != None and board.full_layout[next_y][next_x].piece.colour != col) or hypo:
+                yield (next_x,next_y)
+                return
+            elif board.full_layout[next_y][next_x].piece != None and board.full_layout[next_y][next_x].piece.colour == col:
+                return
+            next_x=coord[0]+int(copysign(count+1,step_x))
+            next_y=coord[1]+int(copysign(count+1,step_y))
 
     @staticmethod
     def compound(maxx:int, maxy:int, limitx:int, limity:int, coord:BoardCoord, genx:Callable, geny:Callable, board:Board, col:int, hypo:bool=False) -> Generator:
@@ -438,41 +433,30 @@ class Capture():
     @staticmethod
     def orthogonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:BoardCoord, board:Board, col:int, hypo:bool=False) -> Generator:
         '''Forward, backward, left, right, in that order'''
-        for entry in Capture.forward(maxes[0],limits[0],coord,board,col,hypo):
-            yield entry
-        for entry in Capture.backward(maxes[1],limits[1],coord,board,col,hypo):
-            yield entry
-        for entry in Capture.left(maxes[2],limits[2],coord,board,col,hypo):
-            yield entry
-        for entry in Capture.forward(maxes[3],limits[3],coord,board,col,hypo):
-            yield entry
+        return itertools.chain(Capture.line(1,-1,maxes[0],limits[0],coord,board,col,hypo),Capture.line(1,1,maxes[1],limits[1],coord,board,col,hypo),Capture.line(0,-1,maxes[2],limits[2],coord,board,col,hypo),Capture.line(0,1,maxes[3],limits[3],coord,board,col,hypo))
 
     @staticmethod
     def diagonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:BoardCoord, board:Board, col:int, hypo:bool=False) -> Generator:
         '''Inputs: top, bottom, left, right\n
         Outputs: top-right, top-left, bottom-left, bottom-right'''
-        for entry in Capture.compound(maxes[3],maxes[0],limits[3],limits[0],coord,Capture.right,Capture.forward, board,col,hypo):
-            yield entry
-        for entry in Capture.compound(maxes[2],maxes[0],limits[2],limits[0],coord,Capture.left,Capture.forward, board,col,hypo):
-            yield entry
-        for entry in Capture.compound(maxes[2],maxes[1],limits[2],limits[1],coord,Capture.left,Capture.backward, board,col,hypo):
-            yield entry
-        for entry in Capture.compound(maxes[3],maxes[1],limits[3],limits[1],coord,Capture.right,Capture.backward, board,col,hypo):
-            yield entry
+        return itertools.chain(Capture.diagonal(1,-1,maxes[3],maxes[0],limits[0],coord,board,col,hypo),Capture.diagonal(-1,-1,maxes[2],maxes[0],limits[1],coord,board,col,hypo),Capture.diagonal(-1,1,maxes[2],maxes[1],limits[2],coord,board,col,hypo),Capture.diagonal(1,1,maxes[3],maxes[1],limits[3],coord,board,col,hypo))
     
     @staticmethod
-    def l_shape(max:tuple[int,int,int,int], limit:int, coord:BoardCoord, board:Board, col:int, lenx:int, leny:int, hypo:bool=False) -> Generator:
+    def l_shape(max:tuple[int,int,int,int], limit:int, coord:BoardCoord, board:Board, lenx:int, leny:int, col:int, hypo:bool=False) -> Generator:
         '''Maxes are forward, backward, left, right, in that order.'''
+        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+            return
         units=[(leny,lenx),(leny,-lenx),(-leny,lenx),(-leny,-lenx),(lenx,leny),(lenx,-leny),(-lenx,leny),(-lenx,-leny)]
-        for i in range(limit):
-            for combo in units:
-                if max[2] <= coord[0]+combo[0]*i <= max[3] and max[1] <= coord[1]+combo[1]*i <= max[0]:
-                    if hypo or (board.full_layout[coord[1]+combo[1]*i][coord[0]+combo[0]*i].piece != None and board.full_layout[coord[1]+combo[1]*i][coord[0]+combo[0]*i].piece.colour != col):
-                        yield (coord[0]+combo[0]*i,coord[1]+combo[1]*i)
-        return
+        for combo in units:
+            for i in range(limit):
+                next_val=(coord[0]+combo[0]*i,coord[1]+combo[1]*i)
+                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and ((board.full_layout[next_val[0]][next_val[1]].piece != None and board.full_layout[next_val[0]][next_val[1]].piece.colour != col) or hypo):
+                    yield next_val
 
     @staticmethod
-    def anywhere(board:Board, col:int, hypo:bool=False):
+    def anywhere(board:Board, col:int, coord:BoardCoord, hypo:bool=False):
+        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+            return
         height=len(board.full_layout)
         width=len(board.full_layout[0])
         for y in range(height):

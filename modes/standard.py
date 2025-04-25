@@ -1,6 +1,4 @@
 '''Gamemode: occidental standard chess'''
-
-import itertools
 if __name__ == "__main__":
     from basic import *
 else:
@@ -24,11 +22,11 @@ class WhitePawn(Piece):
             move_spaces=2
         else:
             move_spaces=1
-        return m.forward(0,move_spaces,self.parent.boardpos,board)
+        return m.line(1,-1,0,move_spaces,self.parent.boardpos,board)
 
     def capture_squares(self, board:Board, hypo:bool=False) -> list[BoardCoord]:
         '''Every square the piece can capture on, factoring in the board. If hypo is True, returns every square the piece can capture on hypothetically.'''
-        temp=itertools.chain(c.compound(0,board.height-1-1,1,1,self.parent.boardpos,c.left,c.forward,board,self.colour),c.compound(board.width-1,board.height-1,1,1,self.parent.boardpos,c.right,c.forward,board,self.colour))
+        temp=itertools.chain(c.diagonal(-1,-1,0,0,1,self.parent.boardpos,board,self.colour,hypo),c.diagonal(1,-1,7,0,1,self.parent.boardpos,board,self.colour,hypo))
         if 0 < self.parent.boardpos[0] < 7:
             left=True
             right=True
@@ -41,20 +39,23 @@ class WhitePawn(Piece):
         if left:
             target=board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]-1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
-                pass
+                temp=itertools.chain(temp,[target.parent.boardpos])
         if right:
             target=board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]+1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
-                pass
+                temp=itertools.chain(temp,[target.parent.boardpos])
         return temp
 
     def move_to(self, final:Tile, board:Board|None=None) -> Piece:
         '''Move to a Tile. Set its parent's piece to None and set the final Tile's piece to this.'''
+        if isinstance(final.piece,Piece) and final.piece.en_passantable:
+            final.piece=None
+            final=board.full_layout[final.boardpos[1]-1][final.boardpos[0]]
         final.piece=self
         self.moved=True
         if self.en_passantable:
             self.en_passantable=False
-        elif final.boardpos[1] == self.parent.boardpos[1]+2:
+        elif final.boardpos[1] == self.parent.boardpos[1]-2:
             self.en_passantable=True
         self.parent.piece=None
         self.parent=final
@@ -75,11 +76,11 @@ class BlackPawn(Piece):
             move_spaces=2
         else:
             move_spaces=1
-        return m.backward(7,move_spaces,self.parent.boardpos,board)
+        return m.line(1,1,0,move_spaces,self.parent.boardpos,board)
 
     def capture_squares(self, board:Board, hypo:bool=False) -> list[BoardCoord]:
         '''Every square the piece can capture on, factoring in the board. If hypo is True, returns every square the piece can capture on hypothetically.'''
-        temp=itertools.chain(c.compound(7,7,1,1,self.parent.boardpos,c.left,c.backward,board,self.colour),c.compound(board.width-1,0,1,1,self.parent.boardpos,c.right,c.backward,board,self.colour))
+        temp=itertools.chain(c.diagonal(-1,1,0,0,1,self.parent.boardpos,board,self.colour,hypo),c.diagonal(1,1,7,0,1,self.parent.boardpos,board,self.colour,hypo))
         if 0 < self.parent.boardpos[0] < 7:
             left=True
             right=True
@@ -92,20 +93,23 @@ class BlackPawn(Piece):
         if left:
             target=board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]-1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
-                pass
+                temp=itertools.chain(temp,[target.parent.boardpos])
         if right:
             target=board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]+1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
-                pass
+                temp=itertools.chain(temp,[target.parent.boardpos])
         return temp
 
     def move_to(self, final:Tile, board:Board|None=None) -> Piece:
         '''Move to a Tile. What really happens is that it removes itself from the previous Tile and returns what should be in the Tile it moves to. Actually setting the Tile's piece to that is handled by the game.'''
+        if isinstance(final.piece,Piece) and final.piece.en_passantable:
+            final.piece=None
+            final=board.full_layout[final.boardpos[1]+1][final.boardpos[0]]
         final.piece=self
         self.moved=True
         if self.en_passantable:
             self.en_passantable=False
-        elif final.boardpos[1] == self.parent.boardpos[1]-2:
+        elif final.boardpos[1] == self.parent.boardpos[1]+2:
             self.en_passantable=True
         self.parent.piece=None
         self.parent=final
@@ -119,13 +123,13 @@ class WhiteBishop(Piece):
         super().__init__("Bishop",3,0,join(PCS_IMG_DIR,"bishop_w.png"))
 
     def moves(self, board:Board):
-        return m.diagonals((board.height-1-1,1,1,board.width-1),(inf,inf,inf,inf),self.parent.boardpos,board)
+        return m.diagonals((0,board.height-1,0,board.width-1),(inf,inf,inf,inf),self.parent.boardpos,board)
     
     def capture_squares(self, board:Board, hypo = False):
-        return c.diagonals((board.height-1-1,1,1,board.width-1),(inf,inf,inf,inf),self.parent.boardpos,board,self.colour,hypo)
+        return c.diagonals((0,board.height-1,0,board.width-1),(inf,inf,inf,inf),self.parent.boardpos,board,self.colour,hypo)
     
     def lines_of_sight(self, board):
-        return [Movement.compound(board.width-1,board.height-1,inf,inf,self.parent.boardpos,Movement.right,Movement.forward, board,self.colour),Movement.compound(1,board.height-1,inf,inf,self.parent.boardpos,Movement.left,Movement.forward, board,self.colour),Movement.compound(1,1,inf,inf,self.parent.boardpos,Movement.left,Movement.backward, board,self.colour),Movement.compound(board.width-1,1,inf,inf,self.parent.boardpos,Movement.right,Movement.backward, board,self.colour)]
+        raise RuntimeError("Get back to this")
     
 class BlackBishop(Piece):
     def __init__(self):
@@ -140,10 +144,10 @@ class WhiteKnight(Piece):
         super().__init__("Knight",3,0,join(PCS_IMG_DIR,"knight_w.png"))
 
     def moves(self, board:Board):
-        return m.l_shape((board.height-1,1,1,board.width-1),1,self.parent.boardpos,board,2,1)
+        return m.l_shape((0,7,0,7),1,self.parent.boardpos,board,2,1)
     
     def capture_squares(self, board, hypo = False):
-        return c.l_shape((board.height-1,1,1,board.width-1),1,self.parent.boardpos,board,self.colour,2,1,hypo)
+        return c.l_shape((0,7,0,7),1,self.parent.boardpos,board,self.colour,2,1,hypo)
     
     def lines_of_sight(self, board):
         return c.l_shape((board.height-1,1,1,board.width-1),1,self.parent.boardpos,board,self.colour,2,1,hypo=True)
@@ -162,10 +166,10 @@ class WhiteRook(Piece):
         self.has_moved=False
 
     def moves(self, board):
-        return m.orthogonals((board.height-1,0,0,board.width-1),(inf,inf,inf,inf),self.parent.boardpos,board)
+        return m.orthogonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,board)
     
     def capture_squares(self, board, hypo = False):
-        return c.orthogonals((board.height-1,0,0,board.width-1),(inf,inf,inf,inf),self.parent.boardpos,board,self.colour, hypo)
+        return c.orthogonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,board,self.colour, hypo)
     
     def move_to(self, final, board = None):
         self.has_moved=True
@@ -187,16 +191,16 @@ class WhiteQueen(Piece):
         super().__init__("Queen",9,0,join(PCS_IMG_DIR,"queen_w.png"))
 
     def moves(self, board:Board):
-        return itertools.chain(m.diagonals((7,1,1,7),(inf,inf,inf,inf),self.parent.boardpos,board),m.orthogonals((7,1,1,7),(inf,inf,inf,inf),self.parent.boardpos,board))
+        return itertools.chain(m.diagonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,board),m.orthogonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,board))
     
     def capture_squares(self, board, hypo = False):
-        return itertools.chain(c.diagonals((7,1,1,7),(inf,inf,inf,inf),self.parent.boardpos,board,self.colour,hypo),c.orthogonals((7,1,1,7),(inf,inf,inf,inf),self.parent.boardpos,board,self.colour,hypo))
+        return itertools.chain(c.diagonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,board,self.colour,hypo),c.orthogonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,board,self.colour,hypo))
     
     def move_to(self, final, board = None):
-        return super().move_to(final, board)
+        return Piece.move_to(self, final, board)
     
     def lines_of_sight(self, board):
-        return [Movement.compound(7,7,inf,inf,self.parent.boardpos,Movement.right,Movement.forward, board,self.colour),Movement.compound(1,7,inf,inf,self.parent.boardpos,Movement.left,Movement.forward, board,self.colour),Movement.compound(1,1,inf,inf,self.parent.boardpos,Movement.left,Movement.backward, board,self.colour),Movement.compound(7,1,inf,inf,self.parent.boardpos,Movement.right,Movement.backward, board,self.colour),Movement.forward(7,inf,self.parent.boardpos,board,self.colour), Movement.backward(1,inf,self.parent.boardpos,board,self.colour), Movement.left(1,inf,self.parent.boardpos,board,self.colour), Movement.right(7,inf,self.parent.boardpos,board,self.colour)]
+        raise RuntimeError("Get back to this")
     
 class BlackQueen(Piece):
     def __init__(self):
@@ -211,16 +215,16 @@ class WhiteKing(Piece):
         super().__init__("King",inf,0,join(PCS_IMG_DIR,"king_w.png"),True)
 
     def moves(self, board):
-        return itertools.chain(m.diagonals((7,1,1,7),(1,1,1,1),self.parent.boardpos,board),m.orthogonals((7,1,1,7),(1,1,1,1),self.parent.boardpos,board))
+        return itertools.chain(m.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,board),m.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,board))
     
     def capture_squares(self, board, hypo = False):
-        return itertools.chain(c.diagonals((7,1,1,7),(1,1,1,1),self.parent.boardpos,board,hypo),c.orthogonals((7,1,1,7),(1,1,1,1),self.parent.boardpos,board,self.colour,hypo))
+        return itertools.chain(c.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,board,hypo),c.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,board,self.colour,hypo))
     
     def move_to(self, final, board = None):
         return Piece.move_to(self,final, board)
     
     def lines_of_sight(self, board):
-        return [Movement.compound(7,7,1,1,self.parent.boardpos,Movement.right,Movement.forward, board,self.colour),Movement.compound(1,7,1,1,self.parent.boardpos,Movement.left,Movement.forward, board,self.colour),Movement.compound(1,1,1,1,self.parent.boardpos,Movement.left,Movement.backward, board,self.colour),Movement.compound(7,1,1,1,self.parent.boardpos,Movement.right,Movement.backward, board,self.colour),Movement.forward(7,1,self.parent.boardpos,board,self.colour), Movement.backward(1,1,self.parent.boardpos,board,self.colour), Movement.left(1,1,self.parent.boardpos,board,self.colour), Movement.right(7,1,self.parent.boardpos,board,self.colour)]
+        raise RuntimeError("Get back to this")
     
 class BlackKing(Piece):
     def __init__(self):
@@ -229,6 +233,20 @@ class BlackKing(Piece):
         self.capture_squares=partial(WhiteKing.capture_squares,self)
         self.move_to=partial(WhiteKing.move_to,self)
         self.lines_of_sight=partial(WhiteKing.lines_of_sight,self)
+
+def after_move(board:Board, col:int):
+    '''Things to do after a move. Col is the colour number of the player who made the move.'''
+    board.progress_turn()
+    for row in board.full_layout:
+        for tile in row:
+            if isinstance(tile.piece,(WhitePawn,BlackPawn)) and tile.piece.colour != board.turn:
+                tile.piece.en_passantable=False
+    if board.turn == 0:
+        end_of_turn(board)
+
+def end_of_turn(board:Board):
+    '''Things to do after all players have made their move.'''
+    pass
 
 STD_PCS_DICT:dict[str,type]={"P":WhitePawn,"p":BlackPawn,"B":WhiteBishop,"b":BlackBishop,"N":WhiteKnight,"n":BlackKnight,"R":WhiteRook,"r":BlackRook,"Q":WhiteQueen,"q":BlackQueen,"K":WhiteKing,"k":BlackKing}
 STD_INIT_POS:list[list[str]]=["rnbqkbnr","pppppppp","8","8","8","8","PPPPPPPP","RNBQKBNR"]

@@ -6,6 +6,7 @@ from modes import basic as b
 from pygame import *
 from collections.abc import Callable
 from os.path import join
+import copy
 
 type Piece=b.Piece
 type Tile=b.Tile
@@ -45,12 +46,14 @@ class Game():
         self.timer:tuple[int,int,int]=(0,0,0)
         self.selected:Tile|None=None
         self.prev_selected:Tile|None=None
+        self.board:b.Board|None=None
 
     def begin(self):
         self.timer=(int(time_field.text),int(inc_field.text),int(del_field.text))
-        self.mode.board.construct((10,b.WIN_HEIGHT/2-(self.mode.board.tile_dim[1]*self.mode.board.height)/2))
-        self.mode.board.populate()
-        self.mode.board.construct_img(b.CREAM_TILE,b.GREEN_TILE,None)
+        self.board=copy.copy(self.mode.board)
+        self.board.construct((10,b.WIN_HEIGHT/2-(self.board.tile_dim[1]*self.board.height)/2))
+        self.board.populate()
+        self.board.construct_img(b.CREAM_TILE,b.GREEN_TILE,None)
 
 v=Game()
 
@@ -64,6 +67,7 @@ def contrast(colour:tuple[int,int,int]):
 class Gamemode():
     '''Placeholder class for properties of game modes so intellisense can check my code. Not supposed to be instantiated.'''
     def __init__(self):
+        self.hidden:bool
         self.board:b.Board
         self.lock:Callable
         self.win:Callable
@@ -270,6 +274,8 @@ piece_count=0
 for module in m.__all__:
     temp=__import__("modes",fromlist=[module])
     temp:Gamemode=getattr(temp,module)
+    if temp.hidden:
+        continue
     try:
         v.mode_infos[module]=temp.info
         v.mode_info_buttons.append(Button((b.WIN_WIDTH/2,200+module_count%5 *100),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_change_additional(module),temp.info.name,msrt_norm))
@@ -353,25 +359,25 @@ while v.running:
     
     elif v.menu == "game":
         v.prev_selected=v.selected
-        temp=v.mode.board.display(v.screen,mp,mu)
+        temp=v.board.display(v.screen,mp,mu)
         if mu:
             if temp != None: #select a tile
                 v.selected=temp
             if temp == False or temp == None: #deselect a tile
                 v.selected=None
             if v.selected != None and (v.selected.move_target or v.selected.capture_target): #move a piece
-                v.prev_selected.piece.move_to(v.selected,v.mode.board)
+                v.prev_selected.piece.move_to(v.selected,v)
                 v.selected.selected=False
                 v.prev_selected=None
                 v.selected=None
-                v.mode.after_move(v.mode.board,v.mode.board.turn)
-            v.mode.board.scrub()
+                v.mode.after_move(v,v.board.turn)
+            v.board.scrub()
             if v.selected != None: #redraw board state
                 if isinstance(v.selected.piece,b.Piece):
-                    for tile in v.selected.piece.moves(v.mode.board):
-                        v.mode.board.full_layout[tile[1]][tile[0]].move_target=True
-                    for tile in v.selected.piece.capture_squares(v.mode.board):
-                        v.mode.board.full_layout[tile[1]][tile[0]].capture_target=True
+                    for tile in v.selected.piece.moves(v):
+                        v.board.full_layout[tile[1]][tile[0]].move_target=True
+                    for tile in v.selected.piece.capture_squares(v):
+                        v.board.full_layout[tile[1]][tile[0]].capture_target=True
     
     display.update()
     v.clock.tick(60)

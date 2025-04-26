@@ -16,17 +16,17 @@ class WhitePawn(Piece):
         self.en_passantable=False
         self.moved=False
 
-    def moves(self, board:Board) -> list[BoardCoord]:
+    def moves(self, game:Game) -> list[BoardCoord]:
         '''Every square the piece can move to (excluding captures). Most of the time, a few calls to Movement functions are enough.'''
         if not self.moved:
             move_spaces=2
         else:
             move_spaces=1
-        return m.line(1,-1,0,move_spaces,self.parent.boardpos,board)
+        return m.line(1,-1,0,move_spaces,self.parent.boardpos,game)
 
-    def capture_squares(self, board:Board, hypo:bool=False) -> list[BoardCoord]:
+    def capture_squares(self, game:Game, hypo:bool=False) -> list[BoardCoord]:
         '''Every square the piece can capture on, factoring in the board. If hypo is True, returns every square the piece can capture on hypothetically.'''
-        temp=itertools.chain(c.diagonal(-1,-1,0,0,1,self.parent.boardpos,board,self.colour,hypo),c.diagonal(1,-1,7,0,1,self.parent.boardpos,board,self.colour,hypo))
+        temp=itertools.chain(c.diagonal(-1,-1,0,0,1,self.parent.boardpos,game,self.colour,hypo),c.diagonal(1,-1,7,0,1,self.parent.boardpos,game,self.colour,hypo))
         if 0 < self.parent.boardpos[0] < 7:
             left=True
             right=True
@@ -37,20 +37,20 @@ class WhitePawn(Piece):
             left=True
             right=False
         if left:
-            target=board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]-1].piece
+            target=game.board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]-1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
                 temp=itertools.chain(temp,[target.parent.boardpos])
         if right:
-            target=board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]+1].piece
+            target=game.board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]+1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
                 temp=itertools.chain(temp,[target.parent.boardpos])
         return temp
 
-    def move_to(self, final:Tile, board:Board|None=None) -> Piece:
+    def move_to(self, final:Tile, game:Game) -> Piece:
         '''Move to a Tile. Set its parent's piece to None and set the final Tile's piece to this.'''
         if isinstance(final.piece,Piece) and final.piece.en_passantable:
             final.piece=None
-            final=board.full_layout[final.boardpos[1]-1][final.boardpos[0]]
+            final=game.board.full_layout[final.boardpos[1]-1][final.boardpos[0]]
         final.piece=self
         self.moved=True
         if self.en_passantable:
@@ -60,9 +60,9 @@ class WhitePawn(Piece):
         self.parent.piece=None
         self.parent=final
     
-    def lines_of_sight(self, board:Board) -> list[Generator]:
+    def lines_of_sight(self, game:Game) -> list[Generator]:
         '''Returns a list of generators, each representing a line of sight of the piece.'''
-        return [c.compound(0,board.height-1-1,1,1,self.parent.boardpos,c.left,c.forward,board,self.colour),c.compound(board.width-1,board.height-1,1,1,self.parent.boardpos,c.right,c.forward,board,self.colour)]
+        return [c.compound(0,game.board.height-1-1,1,1,self.parent.boardpos,c.left,c.forward,game,self.colour),c.compound(game.board.width-1,game.board.height-1,1,1,self.parent.boardpos,c.right,c.forward,game,self.colour)]
     
 class BlackPawn(Piece):
     def __init__(self):
@@ -70,17 +70,17 @@ class BlackPawn(Piece):
         self.en_passantable=False
         self.moved=False
 
-    def moves(self, board:Board) -> list[BoardCoord]:
+    def moves(self, game:Game) -> list[BoardCoord]:
         '''Every square the piece can move to (excluding captures). Most of the time, a few calls to Movement functions are enough.'''
         if not self.moved:
             move_spaces=2
         else:
             move_spaces=1
-        return m.line(1,1,0,move_spaces,self.parent.boardpos,board)
+        return m.line(1,1,0,move_spaces,self.parent.boardpos,game)
 
-    def capture_squares(self, board:Board, hypo:bool=False) -> list[BoardCoord]:
+    def capture_squares(self, game:Game, hypo:bool=False) -> list[BoardCoord]:
         '''Every square the piece can capture on, factoring in the board. If hypo is True, returns every square the piece can capture on hypothetically.'''
-        temp=itertools.chain(c.diagonal(-1,1,0,0,1,self.parent.boardpos,board,self.colour,hypo),c.diagonal(1,1,7,0,1,self.parent.boardpos,board,self.colour,hypo))
+        temp=itertools.chain(c.diagonal(-1,1,0,0,1,self.parent.boardpos,game,self.colour,hypo),c.diagonal(1,1,7,0,1,self.parent.boardpos,game,self.colour,hypo))
         if 0 < self.parent.boardpos[0] < 7:
             left=True
             right=True
@@ -91,20 +91,20 @@ class BlackPawn(Piece):
             left=True
             right=False
         if left:
-            target=board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]-1].piece
+            target=game.board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]-1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
                 temp=itertools.chain(temp,[target.parent.boardpos])
         if right:
-            target=board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]+1].piece
+            target=game.board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]+1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
                 temp=itertools.chain(temp,[target.parent.boardpos])
         return temp
 
-    def move_to(self, final:Tile, board:Board|None=None) -> Piece:
+    def move_to(self, final:Tile, game:Game) -> Piece:
         '''Move to a Tile. What really happens is that it removes itself from the previous Tile and returns what should be in the Tile it moves to. Actually setting the Tile's piece to that is handled by the game.'''
         if isinstance(final.piece,Piece) and final.piece.en_passantable:
             final.piece=None
-            final=board.full_layout[final.boardpos[1]+1][final.boardpos[0]]
+            final=game.board.full_layout[final.boardpos[1]+1][final.boardpos[0]]
         final.piece=self
         self.moved=True
         if self.en_passantable:
@@ -114,21 +114,21 @@ class BlackPawn(Piece):
         self.parent.piece=None
         self.parent=final
     
-    def lines_of_sight(self, board:Board) -> list[Generator]:
+    def lines_of_sight(self, game:Game) -> list[Generator]:
         '''Returns a list of generators, each representing a line of sight of the piece.'''
-        return [c.compound(0,board.height-1-1,1,1,self.parent.boardpos,c.left,c.backward,board,self.colour),c.compound(board.width-1,board.height-1,1,1,self.parent.boardpos,c.right,c.backward,board,self.colour)]
+        return [c.compound(0,game.board.height-1-1,1,1,self.parent.boardpos,c.left,c.backward,game,self.colour),c.compound(game.board.width-1,game.board.height-1,1,1,self.parent.boardpos,c.right,c.backward,game,self.colour)]
     
 class WhiteBishop(Piece):
     def __init__(self):
         super().__init__("Bishop",3,0,join(PCS_IMG_DIR,"bishop_w.png"))
 
-    def moves(self, board:Board):
-        return m.diagonals((0,board.height-1,0,board.width-1),(inf,inf,inf,inf),self.parent.boardpos,board)
+    def moves(self, game:Game):
+        return m.diagonals((0,game.board.height-1,0,game.board.width-1),(inf,inf,inf,inf),self.parent.boardpos,game)
     
-    def capture_squares(self, board:Board, hypo = False):
-        return c.diagonals((0,board.height-1,0,board.width-1),(inf,inf,inf,inf),self.parent.boardpos,board,self.colour,hypo)
+    def capture_squares(self, game:Game, hypo = False):
+        return c.diagonals((0,game.board.height-1,0,game.board.width-1),(inf,inf,inf,inf),self.parent.boardpos,game,self.colour,hypo)
     
-    def lines_of_sight(self, board):
+    def lines_of_sight(self, game:Game):
         raise RuntimeError("Get back to this")
     
 class BlackBishop(Piece):
@@ -143,14 +143,14 @@ class WhiteKnight(Piece):
     def __init__(self):
         super().__init__("Knight",3,0,join(PCS_IMG_DIR,"knight_w.png"))
 
-    def moves(self, board:Board):
-        return m.l_shape((0,7,0,7),1,self.parent.boardpos,board,2,1)
+    def moves(self, game:Game):
+        return m.l_shape((0,7,0,7),1,self.parent.boardpos,game,2,1)
     
-    def capture_squares(self, board, hypo = False):
-        return c.l_shape((0,7,0,7),1,self.parent.boardpos,board,self.colour,2,1,hypo)
+    def capture_squares(self, game:Game, hypo = False):
+        return c.l_shape((0,7,0,7),1,self.parent.boardpos,game,self.colour,2,1,hypo)
     
-    def lines_of_sight(self, board):
-        return c.l_shape((board.height-1,1,1,board.width-1),1,self.parent.boardpos,board,self.colour,2,1,hypo=True)
+    def lines_of_sight(self, game:Game):
+        return c.l_shape((game.board.height-1,1,1,game.board.width-1),1,self.parent.boardpos,game,self.colour,2,1,hypo=True)
     
 class BlackKnight(Piece):
     def __init__(self):
@@ -165,18 +165,18 @@ class WhiteRook(Piece):
         super().__init__("Rook",5,0,join(PCS_IMG_DIR,"rook_w.png"))
         self.has_moved=False
 
-    def moves(self, board):
-        return m.orthogonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,board)
+    def moves(self, game:Game):
+        return m.orthogonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,game)
     
-    def capture_squares(self, board, hypo = False):
-        return c.orthogonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,board,self.colour, hypo)
+    def capture_squares(self, game:Game, hypo = False):
+        return c.orthogonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,game,self.colour, hypo)
     
-    def move_to(self, final, board = None):
+    def move_to(self, final, game:Game):
         self.has_moved=True
-        return Piece.move_to(self,final, board)
+        return Piece.move_to(self,final, game)
     
-    def lines_of_sight(self, board):
-        return [Movement.forward(board.height-1,inf,self.parent.boardpos,board,self.colour), Movement.backward(1,inf,self.parent.boardpos,board,self.colour), Movement.left(1,inf,self.parent.boardpos,board,self.colour), Movement.right(board.width-1,inf,self.parent.boardpos,board,self.colour)]
+    def lines_of_sight(self, game:Game):
+        return [Movement.forward(game.board.height-1,inf,self.parent.boardpos,game,self.colour), Movement.backward(1,inf,self.parent.boardpos,game,self.colour), Movement.left(1,inf,self.parent.boardpos,game,self.colour), Movement.right(game.board.width-1,inf,self.parent.boardpos,game,self.colour)]
     
 class BlackRook(Piece):
     def __init__(self):
@@ -190,16 +190,16 @@ class WhiteQueen(Piece):
     def __init__(self):
         super().__init__("Queen",9,0,join(PCS_IMG_DIR,"queen_w.png"))
 
-    def moves(self, board:Board):
-        return itertools.chain(m.diagonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,board),m.orthogonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,board))
+    def moves(self, game:Game):
+        return itertools.chain(m.diagonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,game),m.orthogonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,game))
     
-    def capture_squares(self, board, hypo = False):
-        return itertools.chain(c.diagonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,board,self.colour,hypo),c.orthogonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,board,self.colour,hypo))
+    def capture_squares(self, game:Game, hypo = False):
+        return itertools.chain(c.diagonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,game,self.colour,hypo),c.orthogonals((0,7,0,7),(inf,inf,inf,inf),self.parent.boardpos,game,self.colour,hypo))
     
-    def move_to(self, final, board = None):
-        return Piece.move_to(self, final, board)
+    def move_to(self, final, game:Game):
+        return Piece.move_to(self, final, game)
     
-    def lines_of_sight(self, board):
+    def lines_of_sight(self, game:Game):
         raise RuntimeError("Get back to this")
     
 class BlackQueen(Piece):
@@ -214,16 +214,16 @@ class WhiteKing(Piece):
     def __init__(self):
         super().__init__("King",inf,0,join(PCS_IMG_DIR,"king_w.png"),True)
 
-    def moves(self, board):
-        return itertools.chain(m.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,board),m.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,board))
+    def moves(self, game:Game):
+        return itertools.chain(m.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game),m.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game))
     
-    def capture_squares(self, board, hypo = False):
-        return itertools.chain(c.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,board,hypo),c.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,board,self.colour,hypo))
+    def capture_squares(self, game:Game, hypo = False):
+        return itertools.chain(c.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game,hypo),c.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game,self.colour,hypo))
     
-    def move_to(self, final, board = None):
-        return Piece.move_to(self,final, board)
+    def move_to(self, final, game:Game):
+        return Piece.move_to(self,final, game)
     
-    def lines_of_sight(self, board):
+    def lines_of_sight(self, game:Game):
         raise RuntimeError("Get back to this")
     
 class BlackKing(Piece):
@@ -234,23 +234,24 @@ class BlackKing(Piece):
         self.move_to=partial(WhiteKing.move_to,self)
         self.lines_of_sight=partial(WhiteKing.lines_of_sight,self)
 
-def after_move(board:Board, col:int):
+def after_move(game:Game, col:int):
     '''Things to do after a move. Col is the colour number of the player who made the move.'''
-    board.progress_turn()
-    for row in board.full_layout:
+    game.board.progress_turn()
+    for row in game.board.full_layout:
         for tile in row:
-            if isinstance(tile.piece,(WhitePawn,BlackPawn)) and tile.piece.colour != board.turn:
+            if isinstance(tile.piece,(WhitePawn,BlackPawn)) and tile.piece.colour != game.board.turn:
                 tile.piece.en_passantable=False
-    if board.turn == 0:
-        end_of_turn(board)
+    if game.board.turn == 0:
+        end_of_turn(game)
 
-def end_of_turn(board:Board):
+def end_of_turn(game:Game):
     '''Things to do after all players have made their move.'''
     pass
 
 STD_PCS_DICT:dict[str,type]={"P":WhitePawn,"p":BlackPawn,"B":WhiteBishop,"b":BlackBishop,"N":WhiteKnight,"n":BlackKnight,"R":WhiteRook,"r":BlackRook,"Q":WhiteQueen,"q":BlackQueen,"K":WhiteKing,"k":BlackKing}
 STD_INIT_POS:list[list[str]]=["rnbqkbnr","pppppppp","8","8","8","8","PPPPPPPP","RNBQKBNR"]
 
+hidden=False
 board=Board(8,8,["8","8","8","8","8","8","8","8"],piecesdict=STD_PCS_DICT,initpos=STD_INIT_POS)
 lock=Rules.lock
 win=Rules.win

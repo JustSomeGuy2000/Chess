@@ -15,6 +15,7 @@ type BoardCoord=tuple[int,int]
 type BoardLayout=list[list[Tile]]
 type Colour=tuple[int,int,int]
 
+hidden=True
 numbers=["0","1","2","3","4","5","6","7","8","9"]
 letters=["","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"]
 
@@ -60,6 +61,31 @@ CREAM_TILE.fill((234,234,208))
 EMPTY_TILE=Surface(STD_TILEDIM,SRCALPHA,32)
 EMPTY_TILE.fill((0,0,0,0))
 
+class Game():
+    '''Placeholder class for properties of game modes so intellisense can check my code. Not supposed to be instantiated.'''
+    def __init__(self):
+        self.clock:time.Clock
+        #self.screen=display.set_mode((WIN_WIDTH,WIN_HEIGHT))
+        self.screen:Surface
+        self.FPS:int
+        self.running:bool
+        self.menu:str
+        self.submenu:str
+        self.last_menu:str
+        self.mode
+        self.additional=None
+        self.mode:...
+        self.connect:bool
+        self.incoming:str
+        self.outgoing:str
+        self.a_m_offset:int
+        self.a_p_offset:int
+        self.timer:tuple[int,int,int]
+        self.selected:Tile|None
+        self.prev_selected:Tile|None
+        self.board:Board|None
+        raise RuntimeError("This is a utility placeholder class that is not supposed to be instantiated. This is why you shouldn't try.")
+
 class Piece(sprite.Sprite):
     '''A piece. Does not display itself, that's the Tile's job.'''
     def __init__(self, name:str, value:int, colour:Literal[0,1,2], sprite:str, check_target:bool=False, initpos:BoardCoord|None=None):
@@ -89,21 +115,21 @@ class Piece(sprite.Sprite):
             str_name="Colourless"
         return f"{str_name} {self.name}"
 
-    def moves(self, board:Board) -> list[BoardCoord]:
+    def moves(self, game:Game) -> list[BoardCoord]:
         '''Every square the piece can move to (excluding captures). Most of the time, a few calls to Movement functions are enough.'''
         pass
 
-    def capture_squares(self, board:Board, hypo:bool=False) -> list[BoardCoord]:
+    def capture_squares(self, game:Game, hypo:bool=False) -> list[BoardCoord]:
         '''Every square the piece can capture on, factoring in the board. If hypo is True, returns every square the piece can capture on hypothetically.'''
         pass
 
-    def move_to(self, final:Tile, board:Board|None=None):
+    def move_to(self, final:Tile, game:Game|None=None):
         '''Move to a Tile. Set its parent's piece to None and set the final Tile's piece to this.'''
         self.parent.piece=None
         final.piece=self
         self.parent=final
     
-    def lines_of_sight(self, board:Board) -> list[Generator]:
+    def lines_of_sight(self, game:Game) -> list[Generator]:
         '''Returns a list of generators, each representing a line of sight of the piece (a way along which the Piece may move and capture at the end of). May be a good idea to have moves() call this and unpack all the generators.'''
         pass
 
@@ -305,28 +331,28 @@ class Movement():
         return [entry for entry in gen]
     
     @staticmethod
-    def line(dir:int, step:int, max:int, limit:int, coord:BoardCoord, board:Board) -> Generator:
-        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+    def line(dir:int, step:int, max:int, limit:int, coord:BoardCoord, game:Game) -> Generator:
+        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
             return
         count=0
         max+=copysign(1,step)
         coord=list(coord)
         coord[dir] += step
-        while coord[dir] != max and count < limit and board.full_layout[coord[1]][coord[0]].piece == None:
+        while coord[dir] != max and count < limit and game.board.full_layout[coord[1]][coord[0]].piece == None:
             count+=1
             yield coord
             coord[dir] += step
     
     @staticmethod
-    def diagonal(step_x:int, step_y:int, max_x:int, max_y:int, limit:int, coord:BoardCoord, board:Board) -> Generator:
-        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+    def diagonal(step_x:int, step_y:int, max_x:int, max_y:int, limit:int, coord:BoardCoord, game:Game) -> Generator:
+        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
             return
         count=0
         max_x+=int(copysign(1,step_x))
         max_y+=int(copysign(1,step_y))
         next_x=coord[0]+int(copysign(count+1,step_x))
         next_y=coord[1]+int(copysign(count+1,step_y))
-        while next_x != max_x and next_y != max_y and count < limit and board.full_layout[next_y][next_x].piece == None:
+        while next_x != max_x and next_y != max_y and count < limit and game.board.full_layout[next_y][next_x].piece == None:
             count += 1
             yield (next_x,next_y)
             next_x=coord[0]+int(copysign(count+1,step_x))
@@ -344,51 +370,51 @@ class Movement():
         return
 
     @staticmethod
-    def compound(maxx:int, maxy:int, limitx:int, limity:int, coord:BoardCoord, genx:Callable, geny:Callable, board:Board) -> Generator:
+    def compound(maxx:int, maxy:int, limitx:int, limity:int, coord:BoardCoord, genx:Callable, geny:Callable, game:Game) -> Generator:
         '''Take the x values from genx and the y values from geny'''
-        list1=Movement.to_list(genx(maxx,limitx,coord,board))
-        list2=Movement.to_list(geny(maxy,limity,coord,board))
+        list1=Movement.to_list(genx(maxx,limitx,coord,game))
+        list2=Movement.to_list(geny(maxy,limity,coord,game))
         for i in range(min(len(list1),len(list2))):
             yield list1[i][0], list2[i][1]
 
     @staticmethod
-    def orthogonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:BoardCoord, board:Board) -> Generator:
+    def orthogonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:BoardCoord, game:Game) -> Generator:
         '''Forward, backward, left, right, in that order'''
-        return itertools.chain(Movement.line(1,-1,maxes[0],limits[0],coord,board),Movement.line(1,1,maxes[1],limits[1],coord,board),Movement.line(0,-1,maxes[2],limits[2],coord,board),Movement.line(0,1,maxes[3],limits[3],coord,board))
+        return itertools.chain(Movement.line(1,-1,maxes[0],limits[0],coord,game),Movement.line(1,1,maxes[1],limits[1],coord,game),Movement.line(0,-1,maxes[2],limits[2],coord,game),Movement.line(0,1,maxes[3],limits[3],coord,game))
 
     @staticmethod
-    def diagonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:BoardCoord, board:Board) -> Generator:
+    def diagonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:BoardCoord, game:Game) -> Generator:
         '''Inputs: top, bottom, left, right\n
         Outputs: top-right, top-left, bottom-left, bottom-right'''
-        return itertools.chain(Movement.diagonal(1,-1,maxes[3],maxes[0],limits[0],coord,board),Movement.diagonal(-1,-1,maxes[2],maxes[0],limits[1],coord,board),Movement.diagonal(-1,1,maxes[2],maxes[1],limits[2],coord,board),Movement.diagonal(1,1,maxes[3],maxes[1],limits[3],coord,board))
+        return itertools.chain(Movement.diagonal(1,-1,maxes[3],maxes[0],limits[0],coord,game),Movement.diagonal(-1,-1,maxes[2],maxes[0],limits[1],coord,game),Movement.diagonal(-1,1,maxes[2],maxes[1],limits[2],coord,game),Movement.diagonal(1,1,maxes[3],maxes[1],limits[3],coord,game))
     
     @staticmethod
-    def l_shape(max:tuple[int,int,int,int], limit:int, coord:BoardCoord, board:Board, lenx:int, leny:int) -> Generator:
+    def l_shape(max:tuple[int,int,int,int], limit:int, coord:BoardCoord, game:Game, lenx:int, leny:int) -> Generator:
         '''Maxes are forward, backward, left, right, in that order.'''
-        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
             return
         units=[(leny,lenx),(leny,-lenx),(-leny,lenx),(-leny,-lenx),(lenx,leny),(lenx,-leny),(-lenx,leny),(-lenx,-leny)]
         for combo in units:
             for i in range(limit):
                 next_val=(coord[0]+combo[0]*i,coord[1]+combo[1]*i)
-                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and board.full_layout[next_val[0]][next_val[1]].piece == None:
+                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and game.board.full_layout[next_val[0]][next_val[1]].piece == None:
                     yield next_val
 
     @staticmethod
-    def anywhere(board:Board, coord:BoardCoord):
-        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+    def anywhere(game:Game, coord:BoardCoord):
+        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
             return
-        height=len(board.full_layout)
-        width=len(board.full_layout[0])
+        height=len(game.board.full_layout)
+        width=len(game.board.full_layout[0])
         for y in range(height):
             for x in range(width):
-                if board.full_layout[y][x].piece == None:
-                    yield board.full_layout[y][x].boardpos
+                if game.board.full_layout[y][x].piece == None:
+                    yield game.board.full_layout[y][x].boardpos
 
 class Capture():
     @staticmethod
-    def line(dir:int, step:int, max:int, limit:int, coord:BoardCoord, board:Board, col:int, hypo:bool=False) -> Generator:
-        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+    def line(dir:int, step:int, max:int, limit:int, coord:BoardCoord, game:Game, col:int, hypo:bool=False) -> Generator:
+        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
             return
         count=0
         max+=copysign(1,step)
@@ -396,16 +422,16 @@ class Capture():
         coord[dir] += step
         while coord[dir] != max and count < limit:
             count+=1
-            if (board.full_layout[coord[1]][coord[0]].piece != None and board.full_layout[coord[1]][coord[0]].piece.colour != col) or hypo:
+            if (game.board.full_layout[coord[1]][coord[0]].piece != None and game.board.full_layout[coord[1]][coord[0]].piece.colour != col) or hypo:
                 yield coord
                 return
-            elif board.full_layout[coord[1]][coord[0]].piece != None and board.full_layout[coord[1]][coord[0]].piece.colour == col:
+            elif game.board.full_layout[coord[1]][coord[0]].piece != None and game.board.full_layout[coord[1]][coord[0]].piece.colour == col:
                 return
             coord[dir] += step
     
     @staticmethod
-    def diagonal(step_x:int, step_y:int, max_x:int, max_y:int, limit:int, coord:BoardCoord, board:Board, col:int, hypo:bool=False) -> Generator:
-        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+    def diagonal(step_x:int, step_y:int, max_x:int, max_y:int, limit:int, coord:BoardCoord, game:Game, col:int, hypo:bool=False) -> Generator:
+        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
             return
         count=0
         max_x+=int(copysign(1,step_x))
@@ -414,63 +440,63 @@ class Capture():
         next_y=coord[1]+int(copysign(count+1,step_y))
         while next_x != max_x and next_y != max_y and count < limit:
             count += 1
-            if (board.full_layout[next_y][next_x].piece != None and board.full_layout[next_y][next_x].piece.colour != col) or hypo:
+            if (game.board.full_layout[next_y][next_x].piece != None and game.board.full_layout[next_y][next_x].piece.colour != col) or hypo:
                 yield (next_x,next_y)
                 return
-            elif board.full_layout[next_y][next_x].piece != None and board.full_layout[next_y][next_x].piece.colour == col:
+            elif game.board.full_layout[next_y][next_x].piece != None and game.board.full_layout[next_y][next_x].piece.colour == col:
                 return
             next_x=coord[0]+int(copysign(count+1,step_x))
             next_y=coord[1]+int(copysign(count+1,step_y))
 
     @staticmethod
-    def compound(maxx:int, maxy:int, limitx:int, limity:int, coord:BoardCoord, genx:Callable, geny:Callable, board:Board, col:int, hypo:bool=False) -> Generator:
+    def compound(maxx:int, maxy:int, limitx:int, limity:int, coord:BoardCoord, genx:Callable, geny:Callable, game:Game, col:int, hypo:bool=False) -> Generator:
         '''Take the x values from genx and the y values from geny'''
-        list1=Movement.to_list(genx(maxx,limitx,coord,board,col,hypo))
-        list2=Movement.to_list(geny(maxy,limity,coord,board,col,hypo))
+        list1=Movement.to_list(genx(maxx,limitx,coord,game,col,hypo))
+        list2=Movement.to_list(geny(maxy,limity,coord,game,col,hypo))
         for i in range(min(len(list1),len(list2))):
             yield list1[i][0], list2[i][1]
 
     @staticmethod
-    def orthogonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:BoardCoord, board:Board, col:int, hypo:bool=False) -> Generator:
+    def orthogonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:BoardCoord, game:Game, col:int, hypo:bool=False) -> Generator:
         '''Forward, backward, left, right, in that order'''
-        return itertools.chain(Capture.line(1,-1,maxes[0],limits[0],coord,board,col,hypo),Capture.line(1,1,maxes[1],limits[1],coord,board,col,hypo),Capture.line(0,-1,maxes[2],limits[2],coord,board,col,hypo),Capture.line(0,1,maxes[3],limits[3],coord,board,col,hypo))
+        return itertools.chain(Capture.line(1,-1,maxes[0],limits[0],coord,game,col,hypo),Capture.line(1,1,maxes[1],limits[1],coord,game,col,hypo),Capture.line(0,-1,maxes[2],limits[2],coord,game,col,hypo),Capture.line(0,1,maxes[3],limits[3],coord,game,col,hypo))
 
     @staticmethod
-    def diagonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:BoardCoord, board:Board, col:int, hypo:bool=False) -> Generator:
+    def diagonals(maxes:tuple[int,int,int,int], limits:tuple[int,int,int,int], coord:BoardCoord, game:Game, col:int, hypo:bool=False) -> Generator:
         '''Inputs: top, bottom, left, right\n
         Outputs: top-right, top-left, bottom-left, bottom-right'''
-        return itertools.chain(Capture.diagonal(1,-1,maxes[3],maxes[0],limits[0],coord,board,col,hypo),Capture.diagonal(-1,-1,maxes[2],maxes[0],limits[1],coord,board,col,hypo),Capture.diagonal(-1,1,maxes[2],maxes[1],limits[2],coord,board,col,hypo),Capture.diagonal(1,1,maxes[3],maxes[1],limits[3],coord,board,col,hypo))
+        return itertools.chain(Capture.diagonal(1,-1,maxes[3],maxes[0],limits[0],coord,game,col,hypo),Capture.diagonal(-1,-1,maxes[2],maxes[0],limits[1],coord,game,col,hypo),Capture.diagonal(-1,1,maxes[2],maxes[1],limits[2],coord,game,col,hypo),Capture.diagonal(1,1,maxes[3],maxes[1],limits[3],coord,game,col,hypo))
     
     @staticmethod
-    def l_shape(max:tuple[int,int,int,int], limit:int, coord:BoardCoord, board:Board, lenx:int, leny:int, col:int, hypo:bool=False) -> Generator:
+    def l_shape(max:tuple[int,int,int,int], limit:int, coord:BoardCoord, game:Game, lenx:int, leny:int, col:int, hypo:bool=False) -> Generator:
         '''Maxes are forward, backward, left, right, in that order.'''
-        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
             return
         units=[(leny,lenx),(leny,-lenx),(-leny,lenx),(-leny,-lenx),(lenx,leny),(lenx,-leny),(-lenx,leny),(-lenx,-leny)]
         for combo in units:
             for i in range(limit):
                 next_val=(coord[0]+combo[0]*i,coord[1]+combo[1]*i)
-                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and ((board.full_layout[next_val[0]][next_val[1]].piece != None and board.full_layout[next_val[0]][next_val[1]].piece.colour != col) or hypo):
+                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and ((game.board.full_layout[next_val[0]][next_val[1]].piece != None and game.board.full_layout[next_val[0]][next_val[1]].piece.colour != col) or hypo):
                     yield next_val
 
     @staticmethod
-    def anywhere(board:Board, col:int, coord:BoardCoord, hypo:bool=False):
-        if board.turn != board.full_layout[coord[1]][coord[0]].piece.colour:
+    def anywhere(game:Game, col:int, coord:BoardCoord, hypo:bool=False):
+        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
             return
-        height=len(board.full_layout)
-        width=len(board.full_layout[0])
+        height=len(game.board.full_layout)
+        width=len(game.board.full_layout[0])
         for y in range(height):
             for x in range(width):
-                if board.full_layout[y][x].piece != None and board.full_layout[y][x].piece.colour != col:
-                    yield board.full_layout[y][x].boardpos
+                if game.board.full_layout[y][x].piece != None and game.board.full_layout[y][x].piece.colour != col:
+                    yield game.board.full_layout[y][x].boardpos
 
 class Rules():
     '''Gamerules that can be altered. Includes win conditions and check-like conditions'''
     @staticmethod
-    def win(board:Board, yourpieces:list[Piece], enemypieces:list[Piece], target:Piece) -> tuple[bool,str]:
+    def win(game:Game, yourpieces:list[Piece], enemypieces:list[Piece], target:Piece) -> tuple[bool,str]:
         '''A generalisation of checkmate. Returns whether or not a win has occurred, and which side has won. Is checkmate by default. pieces is a list of movable Pieces.'''
         '''By default, calls lock() on the current board, then checks for '''
-        info=Rules.lock(board, enemypieces, target, True)
+        info=Rules.lock(game, enemypieces, target, True)
         colour=enemypieces[0].colour
         if info != None:
             squares_to_occlude=info[1]
@@ -479,7 +505,7 @@ class Rules():
                 return False, colour
             else:
                 for piece in yourpieces:
-                    possible_moves.extend(piece.capture_squares(board, True))
+                    possible_moves.extend(piece.capture_squares(game, True))
                 for square in possible_moves:
                     if square not in squares_to_occlude:
                         possible_moves.remove(square)
@@ -490,7 +516,7 @@ class Rules():
             return False, colour
 
     @staticmethod
-    def lock(board:Board, enemypieces:list[Piece], target:Piece, returnall:bool=False) -> list[BoardCoord]|None|list[list[BoardCoord]]:
+    def lock(game:Game, enemypieces:list[Piece], target:Piece, returnall:bool=False) -> list[BoardCoord]|None|list[list[BoardCoord]]:
         '''A generalisation of checks. Returns a list of board positions to lock down. Is check by default. This function is quite intensive (I think), so only call it when it is absolutely needed.'''
         '''Entering check:
         The King is in check if any piece can capture it. This is detected by calling Piece.capture_squares() on every piece and seeing if the King is in one of them. Alternatively, a virtual copy of every piece could be instantiated on the King's position, then their moves detected. If a piece can capture the same type of piece (assuming move and capture symmetry), the King is in check. This is faster but mentally costlier. It is also less general, not applying in variants where moves and captures are not symmetrical across positions and/or colours. The first solution will be implemented.'''
@@ -498,13 +524,13 @@ class Rules():
         Check is exited if the King moves into an un-attacked square, if the attacking piece is blocked, or if the attaking piece is captured. Thus, the squares that can be moved to are the safe moves for the checked piece, line-of-sight squares of all the attacking pieces, and the attacking piece itself.'''
 
         check=False #whether the target is in check
-        possible_moves=target.moves(board.full_layout) #the target's possible moves when not checked
+        possible_moves=target.moves(game.board.full_layout) #the target's possible moves when not checked
         attacking_pieces:list[Piece]=[] #the pieces attacking the target
         not_locked=[] #board spaces that are not locked
 
         for piece in enemypieces: #check if the target is in check and which pieces are checking it
-            for square in piece.capture_squares(board.full_layout):
-                if board.full_layout[square[1]][square[0]].piece == target:
+            for square in piece.capture_squares(game.board.full_layout):
+                if game.board.full_layout[square[1]][square[0]].piece == target:
                     check=True
                     attacking_pieces.append(piece)
      
@@ -513,7 +539,7 @@ class Rules():
         else:
             attacked_squares=[] #unsafe squares for the target
             for piece in enemypieces:
-                attacked_squares.extend(piece.capture_squares(board.full_layout,True))
+                attacked_squares.extend(piece.capture_squares(game.board.full_layout,True))
             for square in attacked_squares:
                 if square in possible_moves:
                     possible_moves.remove(square)
@@ -525,9 +551,9 @@ class Rules():
             occlude=[] #squares that can occlude the check if one of your pieces were there
             attacking_lines=[] #the generators that generate potentially occludable squares
             for piece in attacking_pieces:
-                for line in piece.lines_of_sight(board.full_layout):
+                for line in piece.lines_of_sight(game.board.full_layout):
                     for square in line:
-                        if board.full_layout[square[1]][square[0]].piece == target:
+                        if game.board.full_layout[square[1]][square[0]].piece == target:
                             attacking_lines.append(line) #collect all the generators
                             break
             for line in attacking_lines:
@@ -539,7 +565,7 @@ class Rules():
                         occlude.append(square) #only squares all checking pieces must cross can remove the check if occluded
             not_locked.extend(occlude)
 
-            all_squares=[square for square in [row for row in board.full_layout]]
+            all_squares=[square for square in [row for row in game.board.full_layout]]
             if not returnall:
                 return [square for square in all_squares if square not in not_locked]
             else:

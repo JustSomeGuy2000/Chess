@@ -1,8 +1,9 @@
 # To-do:
+Add castling
 Redo lines of sight
 Fix Knight
 Fix captures
-Add higher-level features (en passant, promotion, generalisation of options bar)
+Add higher-level features (options bar, pocket)
 Add scrolling to Almanac
 Timer, timer options
 Checkmate checking
@@ -69,6 +70,8 @@ Synchronous chess?
 Viennese chess
 Taikyoku shogi
 Grant Acedrex
+Ultima
+Nemeroth
 
 # Code structure:
 Menus have three levels, in decreasing order of relevance:

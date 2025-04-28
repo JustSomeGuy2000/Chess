@@ -257,8 +257,8 @@ almanac_button=Button((b.WIN_WIDTH/2,500),(800,100),gen_change_menu("almanac","m
 back_button=Button((b.WIN_WIDTH/2,b.WIN_HEIGHT-90),(300,70),back_button_func,"Back",msrt_norm)
 almanac_modes_button=Button((250,40),(150,35),gen_change_submenu("modes"),"Modes",msrt_small,toggle=True)
 almanac_pieces_button=Button((250,100),(150,35),gen_change_submenu("pieces"),"Pieces",msrt_small,toggle=True)
-multiplayer_button=Button((b.WIN_WIDTH/3,250),(400,70),gen_change_single("v.connect","True"),"Multiplayer",msrt_norm,toggle=True)
-singleplayer_button=Button((2*b.WIN_WIDTH/3,250),(400,70),gen_change_single("v.connect","False"),"Singleplayer",msrt_norm,toggle=True)
+onlineplay_button=Button((b.WIN_WIDTH/3,250),(400,70),gen_change_single("v.connect","True"),"Online Play",msrt_norm,toggle=True)
+localplay_button=Button((2*b.WIN_WIDTH/3,250),(400,70),gen_change_single("v.connect","False"),"Local Play",msrt_norm,toggle=True)
 to_game_button=Button((b.WIN_WIDTH/2,b.WIN_HEIGHT-190),(300,70),gen_compound_func(gen_change_menu("game",None),v.begin),"Play",msrt_norm)
 m_next_button=Button((2*b.WIN_WIDTH/3,b.WIN_HEIGHT-90),(200,70),gen_func("v.a_m_offset += 1"),"Next",msrt_norm)
 m_prev_button=Button((b.WIN_WIDTH/3,b.WIN_HEIGHT-90),(200,70),gen_func("v.a_m_offset -= 1"),"Prev",msrt_norm)
@@ -345,8 +345,8 @@ while v.running:
             m_next_button.display(v.screen,mp,md,mu,unusable=5*(v.a_m_offset+1) >= len(v.mode_info_buttons))
             m_prev_button.display(v.screen,mp,md,mu,unusable=v.a_m_offset == 0)
         elif v.submenu == "players":
-            singleplayer_button.display(v.screen,mp,md,mu,unusable=not v.mode.local_play,toggle=not v.connect)
-            multiplayer_button.display(v.screen,mp,md,mu,unusable=not v.mode.online_play,toggle=v.connect)
+            localplay_button.display(v.screen,mp,md,mu,unusable=not v.mode.local_play,toggle=not v.connect)
+            onlineplay_button.display(v.screen,mp,md,mu,unusable=not v.mode.online_play,toggle=v.connect)
             time_field.display(v.screen,mp,md,kp)
             seconds_text.display(v.screen)
             inc_field.display(v.screen,mp,md,kp)
@@ -379,5 +379,8 @@ while v.running:
                     for tile in v.selected.piece.capture_squares(v):
                         v.board.full_layout[tile[1]][tile[0]].capture_target=True
     
+    pos_text=msrt_vsmall.render(str(mp),True,b.BLACK)
+    draw.rect(v.screen,b.WHITE,Rect(mp,pos_text.get_size()))
+    v.screen.blit(pos_text,mp)
     display.update()
     v.clock.tick(60)

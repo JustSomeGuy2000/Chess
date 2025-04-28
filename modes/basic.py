@@ -8,6 +8,7 @@ from typing import Literal
 from pygame import *
 from collections.abc import Generator, Callable, Iterable
 import itertools
+import math as ma
 
 type Path=str
 type Coord=tuple[int,int]
@@ -28,6 +29,7 @@ screen=display.set_mode((WIN_WIDTH,WIN_HEIGHT))
 STD_TILEDIM=(100,100)
 PCS_IMG_DIR=join("assets","sprites","pieces")
 TIL_IMG_DIR=join("assets","sprites","tiles")
+OTR_TIL_DIR=join("assets","sprites","other")
 FNT_IMG_DIR=join("assets","montserrat")
 POCKET_ANCHORS=([100,1000],[100,100])
 
@@ -60,6 +62,10 @@ CREAM_TILE=Surface(STD_TILEDIM)
 CREAM_TILE.fill((234,234,208))
 EMPTY_TILE=Surface(STD_TILEDIM,SRCALPHA,32)
 EMPTY_TILE.fill((0,0,0,0))
+ARROWHEAD=Surface((40,40),SRCALPHA,32)
+draw.rect(ARROWHEAD,SELECT_COLOUR,Rect(0,0,40,10))
+draw.rect(ARROWHEAD,SELECT_COLOUR,Rect(30,0,10,40))
+ARROWHEAD=transform.rotate(ARROWHEAD,45)
 
 class Game():
     '''Placeholder class for properties of game modes so intellisense can check my code. Not supposed to be instantiated.'''
@@ -85,6 +91,29 @@ class Game():
         self.prev_selected:Tile|None
         self.board:Board|None
         raise RuntimeError("This is a utility placeholder class that is not supposed to be instantiated. This is why you shouldn't try.")
+    
+class Arrow():
+    def __init__(self,start:Coord,end:Coord,colour:Colour=SELECT_COLOUR):
+        self.start=start
+        self.end=end
+        self.colour=colour
+        mag_x=end[0]-start[0]
+        mag_y=end[1]-start[1]
+        if mag_x != 0:
+            angle=ma.atan(abs(mag_y)/abs(mag_x))*180/ma.pi
+        else:
+            angle=180 if mag_y > 0 else 0
+        if mag_x < 0 and mag_y < 0:
+            angle = 270-angle
+        elif mag_x < 0:
+            angle = 180-angle
+        elif mag_y < 0 and mag_x != 0:
+            angle = 360-angle
+        self.arrow=transform.rotate(ARROWHEAD,angle)
+
+    def display(self, surface:Surface):
+        draw.line(surface,self.colour,self.start,self.end,10)
+        surface.blit(self.arrow,(self.end[0]-27,self.end[1]-20))
 
 class Piece(sprite.Sprite):
     '''A piece. Does not display itself, that's the Tile's job.'''
@@ -196,6 +225,7 @@ class Board():
         self.whitepocket:Pocket=Pocket(POCKET_ANCHORS[0],STD_TILEDIM)
         self.turn:int=0
         self.turn_number:int=0
+        self.arrows:list[Arrow]|list[None]=[]
 
     def construct(self, anchor:Coord):
         '''Creates a list of lists representing the full board without intial pieces placed. Spaces with tiles are called "empty". For non-quadrilateral boards, non-tile spaces are called "void".'''
@@ -283,6 +313,8 @@ class Board():
                     perm=temp
         if isinstance(self.active_options, OptionsBar):
             self.active_options.display(surface, (self.anchor[0]+self.tile_dim*self.width+10,self.anchor[1]+self.tile_dim*self.height/2-self.active_options.height/2))
+        for arrow in self.arrows:
+            arrow.display(surface)
         return perm
     
     def scrub(self):
@@ -291,14 +323,15 @@ class Board():
                 tile.move_target=False
                 tile.capture_target=False
                 tile.locked=[False,False,False,False]
+        self.arrows=[]
 
     def progress_turn(self):
         self.turn_number += 1
         self.turn=self.turn_number%2
 
     def get(self, coord:BoardCoord|int, coord2:int=None) -> Tile|Literal[False]:
-        '''Get a board tile using its board coordinates. Returns False if the Tile deson't.'''
-        if isinstance(coord,BoardCoord):
+        '''Get a board tile using its board coordinates. Returns False if the Tile doesn't exist.'''
+        if isinstance(coord,tuple) and len(coord) == 2 and isinstance(coord[0],int) and isinstance(coord[1],int):
             try:
                 return self.full_layout[coord[1]][coord[0]]
             except IndexError:
@@ -310,6 +343,9 @@ class Board():
                 return False
         else:
             raise TypeError("Cannot access board position based on these arguments.")
+        
+    def board_to_coord(self, pos:BoardCoord) -> Coord:
+        return (pos[0]*self.tile_dim[0]+self.tile_dim[0]/2+self.anchor[0],pos[1]*self.tile_dim[1]+self.tile_dim[1]/2+self.anchor[1])
     
 class Movement():
     @staticmethod
@@ -396,8 +432,8 @@ class Movement():
         units=[(leny,lenx),(leny,-lenx),(-leny,lenx),(-leny,-lenx),(lenx,leny),(lenx,-leny),(-lenx,leny),(-lenx,-leny)]
         for combo in units:
             for i in range(limit):
-                next_val=(coord[0]+combo[0]*i,coord[1]+combo[1]*i)
-                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and game.board.full_layout[next_val[0]][next_val[1]].piece == None:
+                next_val=(coord[0]+combo[0]*(i+1),coord[1]+combo[1]*(i+1))
+                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and game.board.full_layout[next_val[1]][next_val[0]].piece == None:
                     yield next_val
 
     @staticmethod
@@ -414,7 +450,7 @@ class Movement():
 class Capture():
     @staticmethod
     def line(dir:int, step:int, max:int, limit:int, coord:BoardCoord, game:Game, col:int, hypo:bool=False) -> Generator:
-        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
+        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour and not hypo:
             return
         count=0
         max+=copysign(1,step)
@@ -431,7 +467,7 @@ class Capture():
     
     @staticmethod
     def diagonal(step_x:int, step_y:int, max_x:int, max_y:int, limit:int, coord:BoardCoord, game:Game, col:int, hypo:bool=False) -> Generator:
-        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
+        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour and not hypo:
             return
         count=0
         max_x+=int(copysign(1,step_x))
@@ -470,18 +506,19 @@ class Capture():
     @staticmethod
     def l_shape(max:tuple[int,int,int,int], limit:int, coord:BoardCoord, game:Game, lenx:int, leny:int, col:int, hypo:bool=False) -> Generator:
         '''Maxes are forward, backward, left, right, in that order.'''
-        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
+        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour and not hypo:
             return
         units=[(leny,lenx),(leny,-lenx),(-leny,lenx),(-leny,-lenx),(lenx,leny),(lenx,-leny),(-lenx,leny),(-lenx,-leny)]
         for combo in units:
             for i in range(limit):
-                next_val=(coord[0]+combo[0]*i,coord[1]+combo[1]*i)
-                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and ((game.board.full_layout[next_val[0]][next_val[1]].piece != None and game.board.full_layout[next_val[0]][next_val[1]].piece.colour != col) or hypo):
+                next_val=(coord[0]+combo[0]*(i+1),coord[1]+combo[1]*(i+1))
+                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and ((game.board.full_layout[next_val[1]][next_val[0]].piece != None and game.board.full_layout[next_val[1]][next_val[0]].piece.colour != col) or hypo):
                     yield next_val
+                    break
 
     @staticmethod
     def anywhere(game:Game, col:int, coord:BoardCoord, hypo:bool=False):
-        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
+        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour and not hypo:
             return
         height=len(game.board.full_layout)
         width=len(game.board.full_layout[0])
@@ -514,6 +551,15 @@ class Rules():
             return True, colour
         else:
             return False, colour
+        
+    @staticmethod
+    def gen_capture_squares(game:Game, pcs:list[Piece]) -> list[BoardCoord]:
+        squares:list[BoardCoord]=[]
+        for piece in pcs:
+            temp=piece.capture_squares(game,True)
+            if temp != None:
+                squares.extend(piece.capture_squares(game,True))
+        return squares
 
     @staticmethod
     def lock(game:Game, enemypieces:list[Piece], target:Piece, returnall:bool=False) -> list[BoardCoord]|None|list[list[BoardCoord]]:
@@ -524,7 +570,7 @@ class Rules():
         Check is exited if the King moves into an un-attacked square, if the attacking piece is blocked, or if the attaking piece is captured. Thus, the squares that can be moved to are the safe moves for the checked piece, line-of-sight squares of all the attacking pieces, and the attacking piece itself.'''
 
         check=False #whether the target is in check
-        possible_moves=target.moves(game.board.full_layout) #the target's possible moves when not checked
+        possible_moves=target.moves(game) #the target's possible moves when not checked
         attacking_pieces:list[Piece]=[] #the pieces attacking the target
         not_locked=[] #board spaces that are not locked
 

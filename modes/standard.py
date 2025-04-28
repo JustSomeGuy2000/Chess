@@ -1,11 +1,11 @@
 '''Gamemode: occidental standard chess'''
-if __name__ == "__main__":
+try:
     from basic import *
-else:
+except:
     from modes.basic import *
 from pygame import *
 from math import inf
-from functools import partial
+from functools import partial, partialmethod
 m=Movement
 c=Capture
 font.init()
@@ -40,15 +40,17 @@ class WhitePawn(Piece):
             target=game.board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]-1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
                 temp=itertools.chain(temp,[target.parent.boardpos])
+                game.board.arrows.append(Arrow(game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1])),game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1]-1))))
         if right:
             target=game.board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]+1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
                 temp=itertools.chain(temp,[target.parent.boardpos])
+                game.board.arrows.append(Arrow(game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1])),game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1]-1))))
         return temp
 
     def move_to(self, final:Tile, game:Game) -> Piece:
         '''Move to a Tile. Set its parent's piece to None and set the final Tile's piece to this.'''
-        if isinstance(final.piece,Piece) and final.piece.en_passantable:
+        if isinstance(final.piece,BlackPawn) and final.piece.en_passantable and final.boardpos[1] == self.parent.boardpos[1]:
             final.piece=None
             final=game.board.full_layout[final.boardpos[1]-1][final.boardpos[0]]
         final.piece=self
@@ -94,15 +96,17 @@ class BlackPawn(Piece):
             target=game.board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]-1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
                 temp=itertools.chain(temp,[target.parent.boardpos])
+                game.board.arrows.append(Arrow(game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1])),game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1]+1))))
         if right:
             target=game.board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]+1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
                 temp=itertools.chain(temp,[target.parent.boardpos])
+                game.board.arrows.append(Arrow(game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1])),game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1]+1))))
         return temp
 
     def move_to(self, final:Tile, game:Game) -> Piece:
         '''Move to a Tile. What really happens is that it removes itself from the previous Tile and returns what should be in the Tile it moves to. Actually setting the Tile's piece to that is handled by the game.'''
-        if isinstance(final.piece,Piece) and final.piece.en_passantable:
+        if isinstance(final.piece,WhitePawn) and final.piece.en_passantable and final.boardpos[1] == self.parent.boardpos[1]:
             final.piece=None
             final=game.board.full_layout[final.boardpos[1]+1][final.boardpos[0]]
         final.piece=self
@@ -147,7 +151,7 @@ class WhiteKnight(Piece):
         return m.l_shape((0,7,0,7),1,self.parent.boardpos,game,2,1)
     
     def capture_squares(self, game:Game, hypo = False):
-        return c.l_shape((0,7,0,7),1,self.parent.boardpos,game,self.colour,2,1,hypo)
+        return c.l_shape((0,7,0,7),1,self.parent.boardpos,game,2,1,self.colour,hypo)
     
     def lines_of_sight(self, game:Game):
         return c.l_shape((game.board.height-1,1,1,game.board.width-1),1,self.parent.boardpos,game,self.colour,2,1,hypo=True)
@@ -181,6 +185,7 @@ class WhiteRook(Piece):
 class BlackRook(Piece):
     def __init__(self):
         super().__init__("Rook",5,1,join(PCS_IMG_DIR,"rook_b.png"))
+        self.has_moved=False
         self.moves=partial(WhiteRook.moves,self)
         self.capture_squares=partial(WhiteRook.capture_squares,self)
         self.move_to=partial(WhiteRook.move_to,self)
@@ -213,14 +218,34 @@ class BlackQueen(Piece):
 class WhiteKing(Piece):
     def __init__(self):
         super().__init__("King",inf,0,join(PCS_IMG_DIR,"king_w.png"),True)
+        self.has_moved=False
 
     def moves(self, game:Game):
-        return itertools.chain(m.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game),m.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game))
+        temp=itertools.chain(m.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game),m.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game))
+        if game.board.turn == self.colour and not self.has_moved:
+            pieces:list[Piece]=[]
+            for row in game.board.full_layout:
+                for tile in row:
+                    if tile and tile.piece.colour != self.colour:
+                        pieces.append(tile.piece)
+            capture_squares=Rules.gen_capture_squares(game,pieces)
+            right=[self.parent.boardpos,(self.parent.boardpos[0]+1,self.parent.boardpos[1]),(self.parent.boardpos[0]+2,self.parent.boardpos[1]),(self.parent.boardpos[0]+3,self.parent.boardpos[1])]
+            left=[self.parent.boardpos,(self.parent.boardpos[0]-1,self.parent.boardpos[1]),(self.parent.boardpos[0]-2,self.parent.boardpos[1]),(self.parent.boardpos[0]-3,self.parent.boardpos[1]),(self.parent.boardpos[0]-4,self.parent.boardpos[1])]
+            for direction in [right,left]:
+                potential=game.board.get(direction[-1]).piece
+                if True not in [bool(game.board.get(tile)) for tile in direction[1:-1]] and True not in [(tile in capture_squares) for tile in direction[:-1]] and isinstance(potential,Piece) and potential.name == "Rook" and potential.colour == self.colour and not potential.has_moved:
+                    temp=itertools.chain(temp,[direction[2]])
+        return temp
     
     def capture_squares(self, game:Game, hypo = False):
-        return itertools.chain(c.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game,hypo),c.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game,self.colour,hypo))
+        return itertools.chain(c.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game,self.colour,hypo),c.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game,self.colour,hypo))
     
     def move_to(self, final, game:Game):
+        self.has_moved=True
+        if final.boardpos[0] == self.parent.boardpos[0]+2:
+            game.board.get((7,self.parent.boardpos[1])).piece.move_to(game.board.get(5,self.parent.boardpos[1]),game)
+        if final.boardpos[0] == self.parent.boardpos[0]-2:
+            game.board.get((0,self.parent.boardpos[1])).piece.move_to(game.board.get(3,self.parent.boardpos[1]),game)
         return Piece.move_to(self,final, game)
     
     def lines_of_sight(self, game:Game):
@@ -229,6 +254,7 @@ class WhiteKing(Piece):
 class BlackKing(Piece):
     def __init__(self):
         super().__init__("King",inf,1,join(PCS_IMG_DIR,"king_b.png"),True)
+        self.has_moved=False
         self.moves=partial(WhiteKing.moves,self)
         self.capture_squares=partial(WhiteKing.capture_squares,self)
         self.move_to=partial(WhiteKing.move_to,self)
@@ -236,11 +262,11 @@ class BlackKing(Piece):
 
 def after_move(game:Game, col:int):
     '''Things to do after a move. Col is the colour number of the player who made the move.'''
-    game.board.progress_turn()
     for row in game.board.full_layout:
         for tile in row:
             if isinstance(tile.piece,(WhitePawn,BlackPawn)) and tile.piece.colour != game.board.turn:
                 tile.piece.en_passantable=False
+    game.board.progress_turn()
     if game.board.turn == 0:
         end_of_turn(game)
 

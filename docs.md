@@ -1,5 +1,6 @@
 # To-do:
-Add castling
+Prevent multiple piece info buttons if they draw from the same source.
+Add THEEEEEEEEEEE LOOOOOOOOOOOOOOOOOOOORRRRRRRRRRRRRRRRREEEEEEEEEEEEEE!!!!!!!!!
 Redo lines of sight
 Fix Knight
 Fix captures

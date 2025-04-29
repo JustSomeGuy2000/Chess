@@ -9,6 +9,7 @@ from pygame import *
 from collections.abc import Generator, Callable, Iterable
 import itertools
 import math as ma
+import time as t
 
 type Path=str
 type Coord=tuple[int,int]
@@ -39,6 +40,9 @@ ORANGE:Colour=(252,175,0)
 WHITE:Colour=(255,255,255)
 BLACK:Colour=(0,0,0)
 #SHADES=[(17,17,17),(51,51,51),(85,85,85),(119,119,119),(153,153,153)]
+RED=(255,0,0)
+GREEN=(0,255,0)
+BLUE=(0,0,255)
 ROUNDNESS=25
 SELECT_COLOUR=ORANGE
 
@@ -115,6 +119,82 @@ class Arrow():
         draw.line(surface,self.colour,self.start,self.end,10)
         surface.blit(self.arrow,(self.end[0]-27,self.end[1]-20))
 
+def contrast(colour:tuple[int,int,int]):
+    brightness=0.299*colour[0] + 0.587*colour[1] + 0.114*colour[2]
+    if brightness < 100:
+        return (255,255,255)
+    else:
+        return (0,0,0)
+
+class Timer():
+    def __init__(self, amount:int|float, incr:int, delay:int, anchor:Coord, textfont:font.Font, active_colour:Colour=WHITE, inactive_colour:Colour=SHADES[2], active=False, trip_colour:Colour=RED):
+        self.increment=incr
+        self.delay=delay
+        self.countdown=delay
+        self.anchor=anchor
+        self.active=active
+        self.internal_time:float=float(amount)
+        self.active_col=active_colour
+        self.inactive_col=inactive_colour
+        self.trip_colour=trip_colour
+        self.tripped=False
+        self.textfont=textfont
+        self.activatable=True
+        if self.internal_time > 0:
+            self.text:Surface=self.textfont.render(self.prettify(),True,contrast(self.active_col) if self.active else contrast(self.inactive_col))
+        else:
+            self.text:Surface=self.textfont.render("--:--",True,contrast(self.inactive_col))
+            self.activatable=False
+            self.active=False
+        self.rect=Rect(anchor[0],anchor[1],self.text.get_width()+20,self.text.get_height()+10)
+        self.lasttime=t.time()
+        self.inc_text=textfont.render(f"+{self.increment//60}:{self.increment%60}",True,WHITE)
+        self.inc_text_timer=0
+    
+    def display(self, surface:Surface):
+        if not self.tripped:
+            if self.active and self.delay > 0:
+                draw.rect(surface,RED,Rect(self.rect.x-5,self.rect.y-5,(self.rect.width+10)*(self.countdown/self.delay),self.rect.height+10))
+            draw.rect(surface,self.active_col if self.active else self.inactive_col,self.rect,border_radius=ROUNDNESS)
+        else:
+            draw.rect(surface,self.trip_colour,self.rect,border_radius=ROUNDNESS)
+        if self.inc_text_timer > 0:
+            surface.blit(self.inc_text,(self.rect.x+10,self.rect.y+copysign(15+self.textfont.get_height(),surface.get_height()/2-self.rect.y)))
+            self.inc_text_timer -= (t.time()-self.lasttime)
+        surface.blit(self.text,(self.rect.x+10,self.rect.y+5))
+        if self.active and not self.tripped:
+            if self.countdown > 0:
+                self.countdown -= (t.time()-self.lasttime)
+            else:
+                self.internal_time -= (t.time()-self.lasttime)
+            self.lasttime=t.time()
+            self.text=self.textfont.render(self.prettify(),True,contrast(self.active_col))
+            self.rect.width=self.text.get_width()+20
+        if self.internal_time <= 0 and self.activatable:
+            self.tripped=True
+            self.text=self.textfont.render("00:00",True,contrast(self.trip_colour))
+            self.rect.width=self.text.get_width()+20
+
+    def switch(self):
+        if not self.tripped and self.activatable:
+            self.active=not self.active
+            if self.active:
+                self.lasttime=t.time()
+                self.text=self.textfont.render(self.prettify(),True,contrast(self.active_col))
+                self.countdown=self.delay
+            else:
+                self.internal_time += self.increment
+                self.text=self.textfont.render(self.prettify(),True,contrast(self.inactive_col))
+                if self.increment > 0:
+                    self.inc_text_timer=60
+
+    def prettify(self):
+        minutes=str(max(ma.floor(self.internal_time/60),0))
+        seconds=str(max(ma.floor(self.internal_time%60),0))
+        if int(seconds) < 10:
+            seconds="0"+seconds
+        return f"{minutes}:{seconds}"
+
 class Piece(sprite.Sprite):
     '''A piece. Does not display itself, that's the Tile's job.'''
     def __init__(self, name:str, value:int, colour:Literal[0,1,2], sprite:str, check_target:bool=False, initpos:BoardCoord|None=None):
@@ -173,7 +253,7 @@ class Tile():
         self.rect:Rect=rect
         self.move_target:bool=False
         self.capture_target:bool=False
-        self.locked:list[bool]=[False,False,False,False] #whether this Tile is locked for certain conditions. Incoming black, outgoing black, incoming white, outgoing white, in that order.
+        self.locked:bool=False #whether this Tile can be moved to.
         self.selected=False
 
     def __repr__(self):
@@ -226,8 +306,9 @@ class Board():
         self.turn:int=0
         self.turn_number:int=0
         self.arrows:list[Arrow]|list[None]=[]
+        self.timers:list[Timer]=[]
 
-    def construct(self, anchor:Coord):
+    def construct(self, anchor:Coord, amt:int|float, inc:int, delay:int, timerfont:font.Font):
         '''Creates a list of lists representing the full board without intial pieces placed. Spaces with tiles are called "empty". For non-quadrilateral boards, non-tile spaces are called "void".'''
         self.anchor=anchor
         result=[]
@@ -260,6 +341,7 @@ class Board():
                 result.append(temp)
         self.full_layout=result
         self.rect=Rect(anchor[0],anchor[1],self.tile_dim[0]*self.width,self.tile_dim[1]*self.height)
+        self.timers=(Timer(amt,inc,delay,(self.get_width()+20,self.anchor[0]+timerfont.get_height()),timerfont),Timer(amt,inc,delay,(self.get_width()+20,self.get_height()-10-timerfont.get_height()),timerfont,active=True))
     
     def populate(self):
         full_board=self.full_layout
@@ -315,6 +397,8 @@ class Board():
             self.active_options.display(surface, (self.anchor[0]+self.tile_dim*self.width+10,self.anchor[1]+self.tile_dim*self.height/2-self.active_options.height/2))
         for arrow in self.arrows:
             arrow.display(surface)
+        for timer in self.timers:
+            timer.display(surface)
         return perm
     
     def scrub(self):
@@ -322,12 +406,14 @@ class Board():
             for tile in row:
                 tile.move_target=False
                 tile.capture_target=False
-                tile.locked=[False,False,False,False]
+                tile.locked=False
         self.arrows=[]
 
     def progress_turn(self):
         self.turn_number += 1
         self.turn=self.turn_number%2
+        for timer in self.timers:
+            timer.switch()
 
     def get(self, coord:BoardCoord|int, coord2:int=None) -> Tile|Literal[False]:
         '''Get a board tile using its board coordinates. Returns False if the Tile doesn't exist.'''
@@ -346,6 +432,12 @@ class Board():
         
     def board_to_coord(self, pos:BoardCoord) -> Coord:
         return (pos[0]*self.tile_dim[0]+self.tile_dim[0]/2+self.anchor[0],pos[1]*self.tile_dim[1]+self.tile_dim[1]/2+self.anchor[1])
+    
+    def get_width(self) -> int:
+        return self.width*self.tile_dim[0]+self.anchor[0]
+    
+    def get_height(self) -> int:
+        return self.height*self.tile_dim[1]+self.anchor[1]
     
 class Movement():
     @staticmethod
@@ -660,6 +752,10 @@ def wrap_text(text:str, max:int, font:font.Font) -> list[str]:
     lines=[]
     temp=""
     for word in words:
+        if word == "[RETURN]":
+            lines.append(temp)
+            temp=""
+            continue
         if font.size(temp+" "+word)[0] <= max:
             temp += " "+word
         elif temp == "":
@@ -672,8 +768,9 @@ def wrap_text(text:str, max:int, font:font.Font) -> list[str]:
     return [line[1:] for line in lines]
 
 class Info():
-    def __init__(self, name:str, abstract:str, info:str, img:str, img_bg:str|Surface, covers:Literal["mode","piece"], links:list[Info]=None):
+    def __init__(self, name:str, abstract:str, info:str, img:str, img_bg:str|Surface, covers:Literal["mode","piece"], links:list[Info]=None, internal_name:str=None):
         self.name=name
+        self.internal_name=internal_name
         self.abstract=abstract
         self.body=info
         self.covers=covers
@@ -683,6 +780,8 @@ class Info():
             self.image:Surface=transform.scale(img_bg,INFO_IMG_DIM).convert_alpha()
         self.image.blit(transform.scale(image.load(img),INFO_IMG_DIM).convert_alpha(),(0,0))
         self.links=links
+        self.link_names:list[str]=[]
+        self.link_rects:list[Rect]=[]
         self.scroll_offset=0
         self.scrollable=False
 
@@ -690,6 +789,7 @@ class Info():
         self.links=links
 
     def construct(self):
+        temp_link_list:list[int]=[]
         components:dict[str,Surface]={}
         components["image"]=self.image
         wrapped_title=wrap_text(self.name,INFO_WIDTH-INFO_IMG_DIM[0]-2*INFO_PAD_LR-INFO_PAD_SPLIT,INFO_TITLE_FONT)
@@ -714,6 +814,7 @@ class Info():
         components["link rows"]=[]
         for i in range(ceil(len(self.links)/8)):
             num_in_row=min(8,len(self.links)-8*i)
+            temp_link_list.append(num_in_row)
             max_text_height=0
             for j in range(num_in_row):
                 max_text_height=max(max_text_height,len(wrap_text(self.links[8*i+j].name,INFO_MINI_DIM[0],INFO_BODY_FONT))*INFO_BODY_FONT.get_height())
@@ -724,6 +825,12 @@ class Info():
                 wrapped_name=wrap_text(self.links[8*i+j].name,INFO_MINI_DIM[0],INFO_BODY_FONT)
                 for k in range(len(wrapped_name)):
                     row_surface.blit(INFO_BODY_FONT.render(wrapped_name[k],True,WHITE),((INFO_MINI_DIM[0]+LINK_SPACING)*j,INFO_MINI_DIM[1]+INFO_BODY_FONT.get_height()*k))
+                click_rect=Rect(((INFO_MINI_DIM[0]+LINK_SPACING)*j+INFO_PAD_LR+INFO_BORDERS[0],0),INFO_MINI_DIM)
+                if self.links[8*i+j].internal_name != None:
+                    self.link_names.append(self.links[8*i+j].internal_name)
+                else:
+                    self.link_names.append(self.links[8*i+j].name)
+                self.link_rects.append(click_rect)
             components["link rows"].append(row_surface)
         self.display_base=Surface((INFO_WIDTH,components["top bg"].get_height()+INFO_PAD_BOTTOM+components["body"].get_height()+2*INFO_PAD_SPLIT+components["qualifier"].get_height()+sum([row.get_height() for row in components["link rows"]])+INFO_PAD_SPLIT*len(components["link rows"])+INFO_PAD_BOTTOM),SRCALPHA,32)
         self.display_base.fill(SHADES[1])
@@ -742,9 +849,22 @@ class Info():
         body_y_anchor += components["qualifier"].get_height()+INFO_PAD_SPLIT
         for i in range(len(components["link rows"])):
             self.display_base.blit(components["link rows"][i],(INFO_PAD_LR,body_y_anchor))
+            for j in range(temp_link_list[i]):
+                self.link_rects[i*8+j].top=body_y_anchor
             body_y_anchor += components["link rows"][i].get_height()+INFO_PAD_SPLIT
+        if self.display_base.get_height() > WIN_HEIGHT-100:
+            self.scrollable=True
 
-    def display(self, surface:Surface):
+    def display(self, surface:Surface, ms:int, mp:Coord, md:bool) -> str|None:
+        if ms != 0 and self.scrollable:
+            self.scroll_offset = min(max(0, self.scroll_offset-25*ms), self.display_base.get_height()-50)
         surface.blit(self.display_base, (INFO_BORDERS[0],-self.scroll_offset))
+        for hitbox in self.link_rects:
+            temp=hitbox.copy()
+            temp.top=hitbox.top-self.scroll_offset
+            if hitbox.collidepoint((mp[0],mp[1]+self.scroll_offset)):
+                draw.rect(surface,SELECT_COLOUR,temp,5)
+                if md:
+                    return self.link_names[self.link_rects.index(hitbox)]
 
 print('Module "basic" (game foundations) loaded.')

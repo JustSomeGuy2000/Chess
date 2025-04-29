@@ -43,15 +43,13 @@ class Game():
         self.outgoing:str=''
         self.a_m_offset=0
         self.a_p_offset=0
-        self.timer:tuple[int,int,int]=(0,0,0)
         self.selected:Tile|None=None
         self.prev_selected:Tile|None=None
         self.board:b.Board|None=None
 
     def begin(self):
-        self.timer=(int(time_field.text),int(inc_field.text),int(del_field.text))
         self.board=copy.copy(self.mode.board)
-        self.board.construct((10,b.WIN_HEIGHT/2-(self.board.tile_dim[1]*self.board.height)/2))
+        self.board.construct((10,b.WIN_HEIGHT/2-(self.board.tile_dim[1]*self.board.height)/2),int(time_field.text),int(inc_field.text),int(del_field.text),msrt_small)
         self.board.populate()
         self.board.construct_img(b.CREAM_TILE,b.GREEN_TILE,None)
 
@@ -269,6 +267,24 @@ time_field=Input(b.SHADES[1],(200,70),(2*b.WIN_WIDTH/6,350),msrt_small,"0",int_c
 inc_field=Input(b.SHADES[1],(200,70),(3*b.WIN_WIDTH/6,350),msrt_small,"0",int_check)
 del_field=Input(b.SHADES[1],(200,70),(4*b.WIN_WIDTH/6,350),msrt_small,"0",int_check)
 
+y_rails=[n*100 for n in range(b.WIN_HEIGHT//100+1)]
+x_rails=[n*100 for n in range(b.WIN_WIDTH//100+1)]
+debug_grid=[]
+debug_grid_tags=[]
+for x in x_rails:
+    debug_grid.extend([(x,y) for y in y_rails])
+    debug_grid_tags.extend([msrt_vsmall.render(f"({str(x)},{str(y)})",True,b.WHITE) for y in y_rails])
+
+def draw_grid(surface:Surface, points:list[Coord]=debug_grid, tags:list[Surface]=debug_grid_tags, x_lines:list[int]=x_rails, y_lines:list[int]=y_rails, colour:Colour=b.SELECT_COLOUR, x_len:int=b.WIN_HEIGHT, y_len:int=b.WIN_WIDTH):
+    for x in x_lines:
+        draw.line(surface,colour,(x,0),(x,x_len))
+    for y in y_lines:
+        draw.line(surface,colour,(0,y),(y_len,y))
+    for point in points:
+        draw.circle(surface,colour,point,5)
+    for posnum, tag in enumerate(tags):
+        surface.blit(tag, points[posnum])
+
 module_count=0
 piece_count=0
 for module in m.__all__:
@@ -295,11 +311,14 @@ for module in m.__all__:
         piece_count += 1
 
 md:bool=False
+grid:bool=False
 while v.running:
     v.screen.fill((b.SHADES[1]))
     mp:Coord=mouse.get_pos()
     mu:bool=False
     kp:event=None
+    ms_x:int=0
+    ms_y:int=0
     for e in event.get():
         if e.type == QUIT:
             v.running=False
@@ -310,6 +329,11 @@ while v.running:
             mu=True
         if e.type == KEYDOWN:
             kp=e
+        if e.type == MOUSEWHEEL:
+            ms_x=e.x
+            ms_y=e.y
+        if e.type == KEYDOWN and e.key == K_g:
+            grid=not grid
 
     if v.menu == "main":
         title_text.display(v.screen)
@@ -333,9 +357,15 @@ while v.running:
                 p_prev_button.display(v.screen,mp,md,mu,unusable=v.a_p_offset == 0)
         else:
             if v.submenu == "modes":
-                v.mode_infos[v.additional].display(v.screen)
+                hyperlink=v.mode_infos[v.additional].display(v.screen,ms_y,mp,md)
+                if isinstance(hyperlink, str):
+                    v.submenu="pieces"
+                    v.additional=hyperlink
             elif v.submenu == "pieces":
-                v.piece_infos[v.additional].display(v.screen)
+                hyperlink=v.piece_infos[v.additional].display(v.screen,ms_y,mp,md)
+                if isinstance(hyperlink, str):
+                    v.submenu="modes"
+                    v.additional=hyperlink
         back_button.display(v.screen,mp,md,mu)
     elif v.menu == "modes":
         choose_mode_text.display(v.screen)
@@ -379,6 +409,8 @@ while v.running:
                     for tile in v.selected.piece.capture_squares(v):
                         v.board.full_layout[tile[1]][tile[0]].capture_target=True
     
+    if grid:
+        draw_grid(v.screen)
     pos_text=msrt_vsmall.render(str(mp),True,b.BLACK)
     draw.rect(v.screen,b.WHITE,Rect(mp,pos_text.get_size()))
     v.screen.blit(pos_text,mp)

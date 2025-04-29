@@ -5,7 +5,7 @@ except:
     from modes.basic import *
 from pygame import *
 from math import inf
-from functools import partial, partialmethod
+from functools import partial
 m=Movement
 c=Capture
 font.init()
@@ -285,11 +285,13 @@ win=Rules.win
 pawn_info=Info("Pawn","The most numerous piece on the board.","Little guys that usually can only go one step forward, but can take two steps on their first move. They capture differently, doing so one step forward diagonally in either direction. Can promote on the last row of the board. Experienced players can also make use of the abstruse method termed \"en passant\".",join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,"piece")
 bishop_info=Info("Bishop","Snipers that really come into play after the early-game.","Moves and captures infinitely diagonally. A useful piece for sniping and plugging gaps, but its sieve-like capture structure and inability to move to more than half the squares on the board mean it is not as useful alone.",join(PCS_IMG_DIR,"bishop_w.png"),GREEN_TILE,"piece")
 knight_info=Info("Knight","A piece with a truly odd movement pattern, when you think about it.","Moves in an L-shape of 2 tiles then 1 tile (or vice versa). Has the ability to teleport straight to the end of its movement. Is useful in the early game due to its mobility, but drops off later.",join(PCS_IMG_DIR,"knight_w.png"),GREEN_TILE,"piece")
-rook_info=Info("Rook","The shining star of the famed (?) \"twin towers\" strategy.","One of the most powerful pieces on the board due to its ability to entirely block off ranks and files. Moves and captures infinitely in the orthogonal directions.",join(PCS_IMG_DIR,"rook_w.png"),GREEN_TILE,"piece")
+rook_info=Info("Rook","The shining star of the famed \"twin towers\" strategy.","One of the most powerful pieces on the board due to its ability to entirely block off ranks and files. Moves and captures infinitely in the orthogonal directions.",join(PCS_IMG_DIR,"rook_w.png"),GREEN_TILE,"piece")
 queen_info=Info("Queen","In a shocking move for the time, the creators of chess made a woman the most powerful piece.","The most powerful and versatile piece on the board. Has the combined traits of the bishop and the rook. Tends to be blundered.",join(PCS_IMG_DIR,"queen_w.png"),GREEN_TILE,"piece")
 king_info=Info("King","Useless aside from decorative value, similar to many actual kings.","The crux of the game. Threats against it need to be immediately answered, and trapping it ends the game whether by stalemate or checkmate. Can only move a single, pitiful, tile in any direction around it.",join(PCS_IMG_DIR,"king_w.png"),GREEN_TILE,"piece")
 
-info=Info("Chess","The most commonly played variant of chess.","The form of chess known by billions worldwide. Its kinda boring, actually. Fun fact: can also be called \"occidental\" chess. Just learnt a new word, didn't ya?",join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,"mode",[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info])
+lore='''    The form of chess known by billions and played by millions worldwide. Its ancient significance has been lost to time. In the abscence of the continous vitalisation and esteem it once enjoyed, the once great Seed of ASBG has been reduced to a mere shadow of its former power. Many stars have stopped watching, many nebulae gone blind, but not all of them. Sometimes, those that remain still cast their gaze on our little blue planet to watch the games we humans play without realising their meaning, and cause the strange effects the ancients so often enjoyed to occur once more for just a moment. [RETURN] [RETURN]    Throughout it all, the Exokronos have been silently watching. Watching the daily lives, the joys and the sorrows, the triumphs and failures, of the puny creatures called humans. And the humans no longer need them. And they are pleased.'''
+
+info=Info("Chess","The most commonly played variant of chess.",lore,join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,"mode",[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info],internal_name="standard")
 info.construct()
 
 piece_infos:list[Info]=[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info]

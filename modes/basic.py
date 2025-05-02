@@ -10,6 +10,7 @@ from collections.abc import Generator, Callable, Iterable
 import itertools
 import math as ma
 import time as t
+import copy
 
 type Path=str
 type Coord=tuple[int,int]
@@ -205,7 +206,7 @@ class Piece(sprite.Sprite):
         self.colour=colour
         self.initpos=initpos
         self.image=transform.scale(image.load(sprite),STD_TILEDIM).convert_alpha()
-        self.check_target=check_target #whether the piece is a target for check-like conditions
+        self.royal=check_target #whether the piece is a target for check-like conditions
         self.parent:Tile|None=None
         self.promotion:OptionsBar|None=None
         self.promote_pos:list[BoardCoord]|None=None
@@ -417,6 +418,10 @@ class Board():
 
     def get(self, coord:BoardCoord|int, coord2:int=None) -> Tile|Literal[False]:
         '''Get a board tile using its board coordinates. Returns False if the Tile doesn't exist.'''
+        try:
+            coord=tuple(coord)
+        except:
+            pass
         if isinstance(coord,tuple) and len(coord) == 2 and isinstance(coord[0],int) and isinstance(coord[1],int):
             try:
                 return self.full_layout[coord[1]][coord[0]]
@@ -429,6 +434,14 @@ class Board():
                 return False
         else:
             raise TypeError("Cannot access board position based on these arguments.")
+        
+    def get_matching(self, match:Callable[[Tile],bool]) -> list[Tile]:
+        result=[]
+        for row in self.full_layout:
+            for tile in row:
+                if match(tile):
+                    result.append(tile)
+        return result
         
     def board_to_coord(self, pos:BoardCoord) -> Coord:
         return (pos[0]*self.tile_dim[0]+self.tile_dim[0]/2+self.anchor[0],pos[1]*self.tile_dim[1]+self.tile_dim[1]/2+self.anchor[1])
@@ -466,9 +479,10 @@ class Movement():
         max+=copysign(1,step)
         coord=list(coord)
         coord[dir] += step
-        while coord[dir] != max and count < limit and game.board.full_layout[coord[1]][coord[0]].piece == None:
+        while coord[dir] != max and count < limit and game.board.get(coord).piece == None:
             count+=1
-            yield coord
+            if not game.board.get(coord).locked:
+                yield copy.deepcopy((coord[0],coord[1]))
             coord[dir] += step
     
     @staticmethod
@@ -482,7 +496,8 @@ class Movement():
         next_y=coord[1]+int(copysign(count+1,step_y))
         while next_x != max_x and next_y != max_y and count < limit and game.board.full_layout[next_y][next_x].piece == None:
             count += 1
-            yield (next_x,next_y)
+            if not game.board.get(next_x,next_y).locked:
+                yield copy.deepcopy((next_x,next_y))
             next_x=coord[0]+int(copysign(count+1,step_x))
             next_y=coord[1]+int(copysign(count+1,step_y))
         return
@@ -519,14 +534,14 @@ class Movement():
     @staticmethod
     def l_shape(max:tuple[int,int,int,int], limit:int, coord:BoardCoord, game:Game, lenx:int, leny:int) -> Generator:
         '''Maxes are forward, backward, left, right, in that order.'''
-        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
+        if game.board.turn != game.board.get(coord).piece.colour:
             return
         units=[(leny,lenx),(leny,-lenx),(-leny,lenx),(-leny,-lenx),(lenx,leny),(lenx,-leny),(-lenx,leny),(-lenx,-leny)]
         for combo in units:
             for i in range(limit):
                 next_val=(coord[0]+combo[0]*(i+1),coord[1]+combo[1]*(i+1))
-                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and game.board.full_layout[next_val[1]][next_val[0]].piece == None:
-                    yield next_val
+                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and game.board.full_layout[next_val[1]][next_val[0]].piece == None and not game.board.get(next_val).locked:
+                    yield copy.deepcopy(next_val)
 
     @staticmethod
     def anywhere(game:Game, coord:BoardCoord):
@@ -536,7 +551,7 @@ class Movement():
         width=len(game.board.full_layout[0])
         for y in range(height):
             for x in range(width):
-                if game.board.full_layout[y][x].piece == None:
+                if game.board.full_layout[y][x].piece == None and not game.board.get(x,y).locked:
                     yield game.board.full_layout[y][x].boardpos
 
 class Capture():
@@ -550,10 +565,12 @@ class Capture():
         coord[dir] += step
         while coord[dir] != max and count < limit:
             count+=1
-            if (game.board.full_layout[coord[1]][coord[0]].piece != None and game.board.full_layout[coord[1]][coord[0]].piece.colour != col) or hypo:
-                yield coord
-                return
-            elif game.board.full_layout[coord[1]][coord[0]].piece != None and game.board.full_layout[coord[1]][coord[0]].piece.colour == col:
+            if (game.board.get(coord).piece != None and game.board.get(coord).piece.colour != col) or hypo:
+                if not game.board.get(coord).locked:
+                    yield tuple(coord)
+                if (game.board.get(coord).piece != None and game.board.get(coord).piece.colour != col):
+                    return
+            if game.board.get(coord).piece != None and game.board.get(coord).piece.colour == col:
                 return
             coord[dir] += step
     
@@ -568,10 +585,12 @@ class Capture():
         next_y=coord[1]+int(copysign(count+1,step_y))
         while next_x != max_x and next_y != max_y and count < limit:
             count += 1
-            if (game.board.full_layout[next_y][next_x].piece != None and game.board.full_layout[next_y][next_x].piece.colour != col) or hypo:
-                yield (next_x,next_y)
-                return
-            elif game.board.full_layout[next_y][next_x].piece != None and game.board.full_layout[next_y][next_x].piece.colour == col:
+            if (game.board.get(next_x,next_y).piece != None and game.board.get(next_x,next_y).piece.colour != col) or hypo:
+                if not game.board.get(next_x,next_y).locked:
+                    yield (next_x,next_y)
+                if game.board.get(next_x,next_y).piece != None and game.board.get(next_x,next_y).piece.colour != col:
+                    return
+            if game.board.get(next_x,next_y).piece != None and game.board.get(next_x,next_y).piece.colour == col:
                 return
             next_x=coord[0]+int(copysign(count+1,step_x))
             next_y=coord[1]+int(copysign(count+1,step_y))
@@ -604,9 +623,10 @@ class Capture():
         for combo in units:
             for i in range(limit):
                 next_val=(coord[0]+combo[0]*(i+1),coord[1]+combo[1]*(i+1))
-                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and ((game.board.full_layout[next_val[1]][next_val[0]].piece != None and game.board.full_layout[next_val[1]][next_val[0]].piece.colour != col) or hypo):
+                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and ((game.board.get(next_val).piece != None and game.board.get(next_val).piece.colour != col) or hypo) and not game.board.get(next_val).locked:
                     yield next_val
-                    break
+                    if (game.board.get(next_val).piece != None and game.board.get(next_val).piece.colour != col):
+                        break
 
     @staticmethod
     def anywhere(game:Game, col:int, coord:BoardCoord, hypo:bool=False):
@@ -616,28 +636,33 @@ class Capture():
         width=len(game.board.full_layout[0])
         for y in range(height):
             for x in range(width):
-                if game.board.full_layout[y][x].piece != None and game.board.full_layout[y][x].piece.colour != col:
+                if game.board.full_layout[y][x].piece != None and game.board.full_layout[y][x].piece.colour != col and not game.board.get(x,y).locked:
                     yield game.board.full_layout[y][x].boardpos
 
 class Rules():
-    '''Gamerules that can be altered. Includes win conditions and check-like conditions'''
+    '''Gamerules that can be altered or used unchanged depending on the gamemode's requirements. Includes win conditions and check-like conditions (more generally, functions that return the list of board positions to lock)'''
     @staticmethod
     def win(game:Game, yourpieces:list[Piece], enemypieces:list[Piece], target:Piece) -> tuple[bool,str]:
         '''A generalisation of checkmate. Returns whether or not a win has occurred, and which side has won. Is checkmate by default. pieces is a list of movable Pieces.'''
-        '''By default, calls lock() on the current board, then checks for '''
+        '''If the piece is in check, it can be unchecked by movement, occulsion or capturing the checking piece. If the piece has no possible moves, none of your pieces can move to occlusion squares, and none of your pieces can capture the checking piece, checkmate is reached.'''
         info=Rules.lock(game, enemypieces, target, True)
         colour=enemypieces[0].colour
         if info != None:
             squares_to_occlude=info[1]
             possible_moves=info[2]
-            if possible_moves != []:
+            if possible_moves != []: #check if no possible moves. If there are none, proceed to next check
                 return False, colour
             else:
+                your_capture_squares:list[BoardCoord]=[]
                 for piece in yourpieces:
-                    possible_moves.extend(piece.capture_squares(game, True))
+                    possible_moves.extend(piece.moves(game))
+                    your_capture_squares.extend(piece.capture_squares(game))
                 for square in possible_moves:
                     if square not in squares_to_occlude:
                         possible_moves.remove(square)
+                for square in your_capture_squares:
+                    if square == info[3]:
+                        possible_moves.append(square)
 
         if possible_moves == []:
             return True, colour
@@ -646,6 +671,7 @@ class Rules():
         
     @staticmethod
     def gen_capture_squares(game:Game, pcs:list[Piece]) -> list[BoardCoord]:
+        '''Return the list of squares that the specified pieces can currently capture on'''
         squares:list[BoardCoord]=[]
         for piece in pcs:
             temp=piece.capture_squares(game,True)
@@ -654,30 +680,34 @@ class Rules():
         return squares
 
     @staticmethod
-    def lock(game:Game, enemypieces:list[Piece], target:Piece, returnall:bool=False) -> list[BoardCoord]|None|list[list[BoardCoord]]:
+    def lock(game:Game, returnall:bool=False) -> list[BoardCoord]|None|list[list[BoardCoord]]:
         '''A generalisation of checks. Returns a list of board positions to lock down. Is check by default. This function is quite intensive (I think), so only call it when it is absolutely needed.'''
         '''Entering check:
         The King is in check if any piece can capture it. This is detected by calling Piece.capture_squares() on every piece and seeing if the King is in one of them. Alternatively, a virtual copy of every piece could be instantiated on the King's position, then their moves detected. If a piece can capture the same type of piece (assuming move and capture symmetry), the King is in check. This is faster but mentally costlier. It is also less general, not applying in variants where moves and captures are not symmetrical across positions and/or colours. The first solution will be implemented.'''
         '''Squares that can be moved to during check:
         Check is exited if the King moves into an un-attacked square, if the attacking piece is blocked, or if the attaking piece is captured. Thus, the squares that can be moved to are the safe moves for the checked piece, line-of-sight squares of all the attacking pieces, and the attacking piece itself.'''
 
+        target=game.board.get_matching(lambda t: True if t.piece != None and t.piece.royal and t.piece.colour == game.board.turn else False)[0].piece
+        if target == []:
+            return []
         check=False #whether the target is in check
         possible_moves=target.moves(game) #the target's possible moves when not checked
         attacking_pieces:list[Piece]=[] #the pieces attacking the target
         not_locked=[] #board spaces that are not locked
+        enemypieces=[tile.piece for tile in game.board.get_matching(lambda t: True if t.piece != None and t.piece.colour != target.colour else False)]
 
         for piece in enemypieces: #check if the target is in check and which pieces are checking it
-            for square in piece.capture_squares(game.board.full_layout):
+            for square in piece.capture_squares(game):
                 if game.board.full_layout[square[1]][square[0]].piece == target:
                     check=True
                     attacking_pieces.append(piece)
      
         if not check:
-            return None
+            return []
         else:
             attacked_squares=[] #unsafe squares for the target
             for piece in enemypieces:
-                attacked_squares.extend(piece.capture_squares(game.board.full_layout,True))
+                attacked_squares.extend(piece.capture_squares(game,True))
             for square in attacked_squares:
                 if square in possible_moves:
                     possible_moves.remove(square)
@@ -689,7 +719,7 @@ class Rules():
             occlude=[] #squares that can occlude the check if one of your pieces were there
             attacking_lines=[] #the generators that generate potentially occludable squares
             for piece in attacking_pieces:
-                for line in piece.lines_of_sight(game.board.full_layout):
+                for line in piece.lines_of_sight(game):
                     for square in line:
                         if game.board.full_layout[square[1]][square[0]].piece == target:
                             attacking_lines.append(line) #collect all the generators
@@ -707,17 +737,17 @@ class Rules():
             if not returnall:
                 return [square for square in all_squares if square not in not_locked]
             else:
-                return ([square for square in all_squares if square not in not_locked], occlude, possible_moves)
+                return ([square for square in all_squares if square not in not_locked], occlude, possible_moves, attacking_pieces[0].parent.boardpos)
             
     @staticmethod
     def interpret():
         pass
 
 class OptionsBar():
-    def __init__(self, parent:object, contains:list[Tile], clickfunc:Callable, board_for:Board):
+    def __init__(self, parent:object, contains:list[Tile], clickfunc:Callable[[Tile, int], None], board_for:Board):
         self.parent=parent
         self.contains=contains
-        self.on_click:Callable=clickfunc #takes in the tile that that called it and the option that was called.
+        self.on_click=clickfunc #takes in the tile that that called it and the option that was called.
         self.height:int=0
         for tile in self.contains:
             self.height += tile.rect.height
@@ -725,9 +755,11 @@ class OptionsBar():
             self.contains[i].rect.x=board_for.anchor[0]+board_for.tile_dim[0]+10
             self.contains[i].rect.y=board_for.anchor[1]+board_for.tile_dim[1]*board_for.height/2-self.height/2+STD_TILEDIM*i
 
-    def display(self, surface):
+    def display(self, surface:Surface, mp:Coord, mu:bool):
         for tile in self.contains:
-            tile.display(surface)
+            clicked=tile.display(surface,mp,mu)
+            if clicked:
+                self.on_click(tile, self.contains.index(tile))
 
 class Pocket():
     def __init__(self, anchor:Coord, tile_size:int, inittiles:list[Tile]=None):
@@ -737,9 +769,9 @@ class Pocket():
         self.height=tile_size
         self.width=0
 
-    def display(self, surface:Surface):
+    def display(self, surface:Surface, mp:Coord, mu:bool):
         for tile in self.contains:
-            tile.display(surface)
+            tile.display(surface,mp,mu)
 
     def add(self, piece:Piece):
         self.contains.append(Tile(None,"empty",Rect((self.anchor[0]+self.tile_size*len(self.contains),self.anchor[1]),(self.tile_size,self.tile_size))))

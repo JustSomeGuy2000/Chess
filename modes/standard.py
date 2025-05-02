@@ -221,7 +221,13 @@ class WhiteKing(Piece):
         self.has_moved=False
 
     def moves(self, game:Game):
-        temp=itertools.chain(m.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game),m.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game))
+        temp=Movement.to_list(itertools.chain(m.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game),m.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game))) 
+        self.parent.piece=None
+        for tile in game.board.get_matching(lambda t: True if t.piece != None and t.piece.colour != self.colour else False):
+            for square in tile.piece.capture_squares(game, True):
+                if square in temp:
+                    temp.remove(square)
+        self.parent.piece=self
         if game.board.turn == self.colour and not self.has_moved:
             pieces:list[Piece]=[]
             for row in game.board.full_layout:
@@ -238,7 +244,24 @@ class WhiteKing(Piece):
         return temp
     
     def capture_squares(self, game:Game, hypo = False):
-        return itertools.chain(c.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game,self.colour,hypo),c.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game,self.colour,hypo))
+        temp=Movement.to_list(itertools.chain(c.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game,self.colour,hypo),c.orthogonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game,self.colour,hypo)))
+        restore_pieces={}
+        for tile in temp:
+            restore_pieces[tile]=game.board.get(tile).piece
+            game.board.get(tile).piece=None
+            for tile in game.board.get_matching(lambda t: True if t.piece != None and t.piece.colour != self.colour else False):
+                if isinstance(tile.piece,(BlackKing, WhiteKing)):
+                    for square in [(0,1),(0,-1),(1,0),(-1,0),(1,1),(1,-1),(-1,1),(-1,-1)]:
+                        target_coord=(tile.boardpos[0]-square[0],tile.boardpos[1]-square[1])
+                        if game.board.get(target_coord) and target_coord in temp:
+                            temp.remove(target_coord)
+                else:
+                    for square in tile.piece.capture_squares(game, True):
+                        if square in temp:
+                            temp.remove(square)
+        for tile in restore_pieces:
+            game.board.get(tile).piece=restore_pieces[tile]
+        return temp
     
     def move_to(self, final, game:Game):
         self.has_moved=True
@@ -289,7 +312,7 @@ rook_info=Info("Rook","The shining star of the famed \"twin towers\" strategy.",
 queen_info=Info("Queen","In a shocking move for the time, the creators of chess made a woman the most powerful piece.","The most powerful and versatile piece on the board. Has the combined traits of the bishop and the rook. Tends to be blundered.",join(PCS_IMG_DIR,"queen_w.png"),GREEN_TILE,"piece")
 king_info=Info("King","Useless aside from decorative value, similar to many actual kings.","The crux of the game. Threats against it need to be immediately answered, and trapping it ends the game whether by stalemate or checkmate. Can only move a single, pitiful, tile in any direction around it.",join(PCS_IMG_DIR,"king_w.png"),GREEN_TILE,"piece")
 
-lore='''    The form of chess known by billions and played by millions worldwide. Its ancient significance has been lost to time. In the abscence of the continous vitalisation and esteem it once enjoyed, the once great Seed of ASBG has been reduced to a mere shadow of its former power. Many stars have stopped watching, many nebulae gone blind, but not all of them. Sometimes, those that remain still cast their gaze on our little blue planet to watch the games we humans play without realising their meaning, and cause the strange effects the ancients so often enjoyed to occur once more for just a moment. [RETURN] [RETURN]    Throughout it all, the Exokronos have been silently watching. Watching the daily lives, the joys and the sorrows, the triumphs and failures, of the puny creatures called humans. And the humans no longer need them. And they are pleased.'''
+lore='''    The form of chess known by billions and played by millions worldwide. Its ancient significance has been lost to time. In the abscence of the continous vitalisation and esteem it once enjoyed, the once great Seed of ASBG has been reduced to a mere shadow of its former power. Many stars have stopped watching, many nebulae gone blind, but not all of them. Sometimes, those that remain still cast their gaze on our little blue planet to watch the games we humans play without realising their meaning, and cause the strange effects the ancients so often enjoyed to occur once more for just a moment. [RETURN] [RETURN]    Throughout it all, they who have been silently watching continued their vigil. Watching the daily lives, the joys and the sorrows, the triumphs and failures, of the puny creatures called humans. And the humans no longer need them. And they are pleased.'''
 
 info=Info("Chess","The most commonly played variant of chess.",lore,join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,"mode",[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info],internal_name="standard")
 info.construct()

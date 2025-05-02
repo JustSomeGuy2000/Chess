@@ -408,6 +408,8 @@ while v.running:
                         v.board.full_layout[tile[1]][tile[0]].move_target=True
                     for tile in v.selected.piece.capture_squares(v):
                         v.board.full_layout[tile[1]][tile[0]].capture_target=True
+                    for tile in v.mode.lock(v):
+                        v.board.get(tile).locked=True
     
     if grid:
         draw_grid(v.screen)

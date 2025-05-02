@@ -1,17 +1,15 @@
 # To-do:
-Prevent multiple piece info buttons if they draw from the same source.
-Add THEEEEEEEEEEE LOOOOOOOOOOOOOOOOOOOORRRRRRRRRRRRRRRRREEEEEEEEEEEEEE!!!!!!!!!
+CURRENT: Fix checks and implement winnning (checkmate) and draws (stalemate, 50-move, 5-fold repetition or insufficient material)
+Record reading for Nemeroth, perhaps with an animation?
+    Hmm, how would animations work?
+    A mini scripting language, perhaps?
 Redo lines of sight
-Fix Knight
-Fix captures
 Add higher-level features (options bar, pocket)
-Add scrolling to Almanac
-Timer, timer options
 Checkmate checking
 Implement a function to manually set the current player, targetable squares, and target (makes cheese-like functions easier)
 Extra move options (for variants like beirut chess, where there is an option to detonate)
 Custom positions (loaded in from FEN)
-Specifiable win condition
+Position exporting (in PGN or FEN)
 Manual piece-placing option? (for certain variants)
 Manual army choosing? (for some variants)
 Pocket-like space (for some variants)

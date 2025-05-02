@@ -62,10 +62,6 @@ class WhitePawn(Piece):
         self.parent.piece=None
         self.parent=final
     
-    def lines_of_sight(self, game:Game) -> list[Generator]:
-        '''Returns a list of generators, each representing a line of sight of the piece.'''
-        return [c.compound(0,game.board.height-1-1,1,1,self.parent.boardpos,c.left,c.forward,game,self.colour),c.compound(game.board.width-1,game.board.height-1,1,1,self.parent.boardpos,c.right,c.forward,game,self.colour)]
-    
 class BlackPawn(Piece):
     def __init__(self):
         super().__init__("Pawn",1,1,join(PCS_IMG_DIR,"pawn_b.png"))
@@ -118,10 +114,6 @@ class BlackPawn(Piece):
         self.parent.piece=None
         self.parent=final
     
-    def lines_of_sight(self, game:Game) -> list[Generator]:
-        '''Returns a list of generators, each representing a line of sight of the piece.'''
-        return [c.compound(0,game.board.height-1-1,1,1,self.parent.boardpos,c.left,c.backward,game,self.colour),c.compound(game.board.width-1,game.board.height-1,1,1,self.parent.boardpos,c.right,c.backward,game,self.colour)]
-    
 class WhiteBishop(Piece):
     def __init__(self):
         super().__init__("Bishop",3,0,join(PCS_IMG_DIR,"bishop_w.png"))
@@ -132,16 +124,12 @@ class WhiteBishop(Piece):
     def capture_squares(self, game:Game, hypo = False):
         return c.diagonals((0,game.board.height-1,0,game.board.width-1),(inf,inf,inf,inf),self.parent.boardpos,game,self.colour,hypo)
     
-    def lines_of_sight(self, game:Game):
-        raise RuntimeError("Get back to this")
-    
 class BlackBishop(Piece):
     def __init__(self):
         super().__init__("Bishop",3,1,join(PCS_IMG_DIR,"bishop_b.png"))
         self.moves=partial(WhiteBishop.moves,self)
         self.capture_squares=partial(WhiteBishop.capture_squares,self)
         self.move_to=partial(WhiteBishop.move_to,self)
-        self.lines_of_sight=partial(WhiteBishop.lines_of_sight,self)
     
 class WhiteKnight(Piece):
     def __init__(self):
@@ -153,16 +141,12 @@ class WhiteKnight(Piece):
     def capture_squares(self, game:Game, hypo = False):
         return c.l_shape((0,7,0,7),1,self.parent.boardpos,game,2,1,self.colour,hypo)
     
-    def lines_of_sight(self, game:Game):
-        return c.l_shape((game.board.height-1,1,1,game.board.width-1),1,self.parent.boardpos,game,self.colour,2,1,hypo=True)
-    
 class BlackKnight(Piece):
     def __init__(self):
         super().__init__("Knight",3,1,join(PCS_IMG_DIR,"knight_b.png"))
         self.moves=partial(WhiteKnight.moves,self)
         self.capture_squares=partial(WhiteKnight.capture_squares,self)
         self.move_to=partial(WhiteKnight.move_to,self)
-        self.lines_of_sight=partial(WhiteKnight.lines_of_sight,self)
 
 class WhiteRook(Piece):
     def __init__(self):
@@ -179,9 +163,6 @@ class WhiteRook(Piece):
         self.has_moved=True
         return Piece.move_to(self,final, game)
     
-    def lines_of_sight(self, game:Game):
-        return [Movement.forward(game.board.height-1,inf,self.parent.boardpos,game,self.colour), Movement.backward(1,inf,self.parent.boardpos,game,self.colour), Movement.left(1,inf,self.parent.boardpos,game,self.colour), Movement.right(game.board.width-1,inf,self.parent.boardpos,game,self.colour)]
-    
 class BlackRook(Piece):
     def __init__(self):
         super().__init__("Rook",5,1,join(PCS_IMG_DIR,"rook_b.png"))
@@ -189,7 +170,6 @@ class BlackRook(Piece):
         self.moves=partial(WhiteRook.moves,self)
         self.capture_squares=partial(WhiteRook.capture_squares,self)
         self.move_to=partial(WhiteRook.move_to,self)
-        self.lines_of_sight=partial(WhiteRook.lines_of_sight,self)
 
 class WhiteQueen(Piece):
     def __init__(self):
@@ -204,16 +184,12 @@ class WhiteQueen(Piece):
     def move_to(self, final, game:Game):
         return Piece.move_to(self, final, game)
     
-    def lines_of_sight(self, game:Game):
-        raise RuntimeError("Get back to this")
-    
 class BlackQueen(Piece):
     def __init__(self):
         super().__init__("Queen",9,1,join(PCS_IMG_DIR,"queen_b.png"))
         self.moves=partial(WhiteQueen.moves,self)
         self.capture_squares=partial(WhiteQueen.capture_squares,self)
         self.move_to=partial(WhiteQueen.move_to,self)
-        self.lines_of_sight=partial(WhiteQueen.lines_of_sight,self)
 
 class WhiteKing(Piece):
     def __init__(self):
@@ -271,9 +247,6 @@ class WhiteKing(Piece):
             game.board.get((0,self.parent.boardpos[1])).piece.move_to(game.board.get(3,self.parent.boardpos[1]),game)
         return Piece.move_to(self,final, game)
     
-    def lines_of_sight(self, game:Game):
-        raise RuntimeError("Get back to this")
-    
 class BlackKing(Piece):
     def __init__(self):
         super().__init__("King",inf,1,join(PCS_IMG_DIR,"king_b.png"),True)
@@ -281,7 +254,6 @@ class BlackKing(Piece):
         self.moves=partial(WhiteKing.moves,self)
         self.capture_squares=partial(WhiteKing.capture_squares,self)
         self.move_to=partial(WhiteKing.move_to,self)
-        self.lines_of_sight=partial(WhiteKing.lines_of_sight,self)
 
 def after_move(game:Game, col:int):
     '''Things to do after a move. Col is the colour number of the player who made the move.'''

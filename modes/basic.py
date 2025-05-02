@@ -238,10 +238,6 @@ class Piece(sprite.Sprite):
         self.parent.piece=None
         final.piece=self
         self.parent=final
-    
-    def lines_of_sight(self, game:Game) -> list[Generator]:
-        '''Returns a list of generators, each representing a line of sight of the piece (a way along which the Piece may move and capture at the end of). May be a good idea to have moves() call this and unpack all the generators.'''
-        pass
 
 class Tile():
     '''A container for tile information. Is True if there it contains a piece, is False otherwise'''
@@ -697,14 +693,15 @@ class Rules():
         enemypieces=[tile.piece for tile in game.board.get_matching(lambda t: True if t.piece != None and t.piece.colour != target.colour else False)]
 
         for piece in enemypieces: #check if the target is in check and which pieces are checking it
-            for square in piece.capture_squares(game):
-                if game.board.full_layout[square[1]][square[0]].piece == target:
+            for square in piece.capture_squares(game,True):
+                if game.board.get(square).piece == target:
                     check=True
                     attacking_pieces.append(piece)
      
         if not check:
             return []
         else:
+            plc=Piece("Brick Wall",-1,-1,None)
             attacked_squares=[] #unsafe squares for the target
             for piece in enemypieces:
                 attacked_squares.extend(piece.capture_squares(game,True))
@@ -716,22 +713,28 @@ class Rules():
             if len(attacking_pieces) == 1:
                 not_locked.append(attacking_pieces[0].parent.boardpos) #if only one piece is attacking, it can be captured to end the check.
 
-            occlude=[] #squares that can occlude the check if one of your pieces were there
-            attacking_lines=[] #the generators that generate potentially occludable squares
+            occlude=[]
+            occludable_line=[]
             for piece in attacking_pieces:
-                for line in piece.lines_of_sight(game):
-                    for square in line:
-                        if game.board.full_layout[square[1]][square[0]].piece == target:
-                            attacking_lines.append(line) #collect all the generators
-                            break
-            for line in attacking_lines:
-                temp_occlude:list[list[BoardCoord]]=[]
-                temp_occlude.append(Movement.to_list(line))
-            for line in temp_occlude:
-                for square in line:
-                    if all([square in line for line in temp_occlude]):
-                        occlude.append(square) #only squares all checking pieces must cross can remove the check if occluded
-            not_locked.extend(occlude)
+                for square in piece.capture_squares(game,True):
+                    original_piece=game.board.get(square).piece
+                    game.board.get(square).piece=plc
+                    occludable=True
+                    for square_2 in piece.capture_squares(game):
+                        if game.board.get(square_2).piece == target:
+                            occludable=False
+                    if occludable:
+                        occludable_line.append(square)
+                    game.board.get(square).piece=original_piece
+                occlude.append(set(occludable_line))
+                occludable_line=[]
+            if len([line for line in occlude if len(line) == 0]) != 1:
+                real_occlude=occlude[0]
+                for line in occlude:
+                    real_occlude=real_occlude&line
+                not_locked.extend(real_occlude)
+            else:
+                not_locked.extend(occlude)
 
             all_squares=[square for square in [row for row in game.board.full_layout]]
             if not returnall:

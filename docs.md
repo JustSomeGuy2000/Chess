@@ -1,5 +1,7 @@
 # To-do:
-CURRENT: Fix checks and implement winnning (checkmate) and draws (stalemate, 50-move, 5-fold repetition or insufficient material)
+CURRENT: Fix checks
+    My head ain't working to great rn, check the check checking logic before trying it out.
+Implement winnning (checkmate) and draws (stalemate, 50-move, 5-fold repetition or insufficient material)
 Record reading for Nemeroth, perhaps with an animation?
     Hmm, how would animations work?
     A mini scripting language, perhaps?

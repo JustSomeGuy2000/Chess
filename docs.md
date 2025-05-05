@@ -1,5 +1,5 @@
 # To-do:
-CURRENT: Get OptionsBar (and hence promotion) to work
+CURRENT: Allow OptionsBar to choose a tile on the board
 Pins are not per piece, but rather included in Rules.lock()?
 Finish adding animations
 Implement decorator that handles all the move validation, so actual movement functions only have to focus on generation

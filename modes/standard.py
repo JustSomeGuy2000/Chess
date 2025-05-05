@@ -10,6 +10,10 @@ m=Movement
 c=Capture
 font.init()
 
+def promote(source:Tile, options:OptionsBar):
+    options.parent.parent.piece=source.piece
+    source.piece.parent=options.parent.parent
+
 class WhitePawn(Piece):
     def __init__(self):
         super().__init__("Pawn",1,0,join(PCS_IMG_DIR,"pawn_w.png"))
@@ -48,7 +52,7 @@ class WhitePawn(Piece):
                 game.board.arrows.append(Arrow(game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1])),game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1]-1))))
         return temp
 
-    def move_to(self, final:Tile, game:Game) -> Piece:
+    def move_to(self, final:Tile, game:Game):
         '''Move to a Tile. Set its parent's piece to None and set the final Tile's piece to this.'''
         if isinstance(final.piece,BlackPawn) and final.piece.en_passantable and final.boardpos[1] == self.parent.boardpos[1]:
             final.piece=None
@@ -61,12 +65,38 @@ class WhitePawn(Piece):
             self.en_passantable=True
         self.parent.piece=None
         self.parent=final
+        if (self.colour == 0 and self.parent.boardpos[1] == 0) or (self.colour == 1 and self.parent.boardpos[1] == 7):
+            self.parent.propagate_options=True
+
+    def get_options(self, game:Game) -> OptionsBar:
+        queen_tile=Tile((0,0),"empty",Rect(0,0,0,0),None)
+        if self.colour == 0:
+            queen_tile.piece=WhiteQueen()
+        else:
+            queen_tile.piece=BlackQueen()
+        rook_tile=Tile((0,0),"empty",Rect(0,0,0,0),None)
+        if self.colour == 0:
+            rook_tile.piece=WhiteRook()
+        else:
+            rook_tile.piece=BlackRook()
+        bishop_tile=Tile((0,0),"empty",Rect(0,0,0,0),None)
+        if self.colour == 0:
+            bishop_tile.piece=WhiteBishop()
+        else:
+            bishop_tile.piece=BlackBishop()
+        knight_tile=Tile((0,0),"empty",Rect(0,0,0,0),None)
+        if self.colour == 0:
+            knight_tile.piece=WhiteKnight()
+        else:
+            knight_tile.piece=BlackKnight()
+        return OptionsBar(self, [queen_tile,rook_tile,bishop_tile,knight_tile],promote,game.board)
     
 class BlackPawn(Piece):
     def __init__(self):
         super().__init__("Pawn",1,1,join(PCS_IMG_DIR,"pawn_b.png"))
         self.en_passantable=False
         self.moved=False
+        self.get_options=partial(WhitePawn.get_options,self)
 
     def moves(self, game:Game) -> list[BoardCoord]:
         '''Every square the piece can move to (excluding captures). Most of the time, a few calls to Movement functions are enough.'''

@@ -278,10 +278,10 @@ class Tile():
         else:
             return False
 
-    def display(self, surface:Surface, mp:Coord, mu:Coord) -> tuple[Tile|None,OptionsBar|None]:
+    def display(self, surface:Surface, mp:Coord, mu:bool, game:Game) -> tuple[Tile|None|False,OptionsBar|None]:
         '''Display the piece at its position. Returns itself if clicked, or False if deselected. Returns None otherwise.'''
         if self.propagate_options:
-            temp=self.piece.get_options()
+            temp=self.piece.get_options(game)
             self.propagate_options=False
         else:
             temp=None
@@ -399,7 +399,7 @@ class Board():
         else:
             self.image=whole.convert_alpha()
 
-    def display(self, surface:Surface, mp:Coord, mu:Coord) -> Tile|None:
+    def display(self, surface:Surface, mp:Coord, mu:Coord, game:Game) -> Tile|None:
         '''Display all tiles and option bars. Returns a Tile if one was clicked.'''
         if not isinstance(self.image, Surface):
             raise TypeError("No display image has been set.")
@@ -407,13 +407,19 @@ class Board():
         perm=None
         for row in self.full_layout:
             for tile in row:
-                temp=tile.display(surface,mp,mu)
-                if temp[0] != None:
-                    perm=temp
+                temp=tile.display(surface,mp,mu,game)
+                if temp[0] != None and self.active_options == None:
+                    perm=temp[0]
                 if isinstance(temp[1],OptionsBar):
                     self.active_options=temp[1]
         if isinstance(self.active_options, OptionsBar):
-            self.active_options.display(surface, mp, mu)
+            remove_options=self.active_options.display(surface, mp, mu, game, perm)
+            if remove_options:
+                self.active_options=None
+        if isinstance(self.whitepocket, Pocket):
+            self.whitepocket.display(surface, mp, mu, game, perm)
+        if isinstance(self.blackpocket, Pocket):
+            self.blackpocket.display(surface, mp, mu, game, perm)
         for arrow in self.arrows:
             arrow.display(surface)
         for timer in self.timers:
@@ -457,7 +463,7 @@ class Board():
         result=[]
         for row in self.full_layout:
             for tile in row:
-                if match(tile):
+                if match(tile) and tile.colour != None:
                     result.append(tile)
         return result
         
@@ -777,34 +783,63 @@ class Rules():
         pass
 
 class OptionsBar():
-    def __init__(self, parent:Piece, contains:list[Tile], clickfunc:Callable[[Tile, int], None], board_for:Board):
+    def __init__(self, parent:Piece, contains:list[Tile], clickfunc:Callable[[Tile, OptionsBar, None|Tile], None], board_for:Board, choose_tile:bool=False, message:Surface=None):
         self.parent=parent
         self.contains=contains
-        self.on_click=clickfunc #takes in the tile that that called it and the option that was called.
+        self.on_click=clickfunc #takes in the tile and optionsbar that called it, also takes the tile that was chosen if choose_tile is True.
+        self.choose_tile=choose_tile
+        self.active_choice:Tile|None=None
+        self.message=message
         self.height:int=0
+        for i in range(len(self.contains)):
+            self.contains[i].rect.width=STD_TILEDIM[0]
+            self.contains[i].rect.height=STD_TILEDIM[1]
         for tile in self.contains:
             self.height += tile.rect.height
         for i in range(len(self.contains)):
             self.contains[i].rect.x=board_for.anchor[0]+board_for.get_width()+10
-            self.contains[i].rect.y=board_for.anchor[1]+board_for.tile_dim[1]*board_for.height/2-self.height/2+STD_TILEDIM*i
+            self.contains[i].rect.y=board_for.anchor[1]+board_for.get_height()/2-self.height/2+STD_TILEDIM[0]*i
+        self.message_anchor=(self.contains[0].rect.x+self.contains[0].rect.width+10, board_for.get_height()/2-self.message.get_height()/2)
+        self.selected:Tile|None=None
 
-    def display(self, surface:Surface, mp:Coord, mu:bool):
+    def display(self, surface:Surface, mp:Coord, mu:bool, game:Game, clicked_tile:Tile|None) -> bool:
+        if isinstance(self.message, Surface):
+            surface.blit(self.message, self.message_anchor)
         for tile in self.contains:
-            clicked=tile.display(surface,mp,mu)
-            if isinstance(clicked,Tile):
-                self.on_click(tile, self.contains.index(tile))
+            clicked=tile.display(surface,mp,mu,game)
+            if isinstance(clicked[0], Tile):
+                self.selected=clicked[0]
+            elif clicked[0] == False:
+                self.selected=None
+        if isinstance(clicked[0],Tile):
+            if not self.choose_tile:
+                self.on_click(self.selected, self)
+                return True
+            else:
+                if isinstance(clicked_tile,Tile):
+                    self.on_click(self.selected, self, clicked_tile)
+                    return True
+        return False
 
 class Pocket():
-    def __init__(self, anchor:Coord, tile_size:int, inittiles:list[Tile]=None):
+    def __init__(self, anchor:Coord, tile_size:Coord, inittiles:list[Tile]=[], clickfunc:None|Callable[[Tile, Tile], None]=None):
         self.contains:list[Tile]=inittiles
         self.anchor:Coord=anchor
-        self.tile_size=tile_size
-        self.height=tile_size
+        self.tile_size=tile_size[0]
+        self.height=tile_size[1]
         self.width=0
+        self.clickfunc=clickfunc #takes in the selected pocket tile, and the clicked board tile
+        self.selected:Tile|None=None
 
-    def display(self, surface:Surface, mp:Coord, mu:bool):
+    def display(self, surface:Surface, mp:Coord, mu:bool, game:Game, clicked_tile:Tile|None):
         for tile in self.contains:
-            tile.display(surface,mp,mu)
+            selected=tile.display(surface,mp,mu,game)
+            if isinstance(selected, Tile):
+                self.selected=selected
+            elif selected == False:
+                self.selected=None
+        if isinstance(self.selected, Tile) and isinstance(clicked_tile, Tile):
+            self.clickfunc(self.selected, clicked_tile)
 
     def add(self, piece:Piece):
         self.contains.append(Tile(None,"empty",Rect((self.anchor[0]+self.tile_size*len(self.contains),self.anchor[1]),(self.tile_size,self.tile_size))))

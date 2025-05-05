@@ -1,13 +1,10 @@
 # To-do:
-CURRENT: Fix checks
-    My head ain't working to great rn, check the check checking logic before trying it out.
-Implement winnning (checkmate) and draws (stalemate, 50-move, 5-fold repetition or insufficient material)
-Record reading for Nemeroth, perhaps with an animation?
-    Hmm, how would animations work?
-    A mini scripting language, perhaps?
-Redo lines of sight
+CURRENT: Get OptionsBar (and hence promotion) to work
+Pins are not per piece, but rather included in Rules.lock()?
+Finish adding animations
+Implement decorator that handles all the move validation, so actual movement functions only have to focus on generation
+Implement draws (stalemate, 50-move, 5-fold repetition or insufficient material)
 Add higher-level features (options bar, pocket)
-Checkmate checking
 Implement a function to manually set the current player, targetable squares, and target (makes cheese-like functions easier)
 Extra move options (for variants like beirut chess, where there is an option to detonate)
 Custom positions (loaded in from FEN)
@@ -15,6 +12,7 @@ Position exporting (in PGN or FEN)
 Manual piece-placing option? (for certain variants)
 Manual army choosing? (for some variants)
 Pocket-like space (for some variants)
+Remove debug stuff (grid, mouse position, tiles showing if they are locked)
 
 # Modes to add:
 Duck chess (the duck)

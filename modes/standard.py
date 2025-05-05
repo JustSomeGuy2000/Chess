@@ -255,7 +255,7 @@ class BlackKing(Piece):
         self.capture_squares=partial(WhiteKing.capture_squares,self)
         self.move_to=partial(WhiteKing.move_to,self)
 
-def after_move(game:Game, col:int):
+def after_move(game:Game):
     '''Things to do after a move. Col is the colour number of the player who made the move.'''
     for row in game.board.full_layout:
         for tile in row:

@@ -2,6 +2,7 @@
 
 import modes as m
 import time as t
+import math as ma
 from modes import basic as b
 from pygame import *
 from collections.abc import Callable
@@ -30,7 +31,6 @@ class Game():
         self.menu:str="main"
         self.submenu:str="main"
         self.last_menu:str=None
-        self.mode=None
         self.mode_infos:dict[str,b.Info]={}
         self.mode_info_buttons:list[Button]=[]
         self.mode_choose_buttons:list[Button]=[]
@@ -46,12 +46,21 @@ class Game():
         self.selected:Tile|None=None
         self.prev_selected:Tile|None=None
         self.board:b.Board|None=None
+        self.win:list[bool|int]=[False, -1]
 
     def begin(self):
         self.board=copy.copy(self.mode.board)
         self.board.construct((10,b.WIN_HEIGHT/2-(self.board.tile_dim[1]*self.board.height)/2),int(time_field.text),int(inc_field.text),int(del_field.text),msrt_small)
         self.board.populate()
         self.board.construct_img(b.CREAM_TILE,b.GREEN_TILE,None)
+
+    def reset(self):
+        self.menu="main"
+        self.submenu="main"
+        self.last_menu=None
+        self.mode=None
+        self.additional=None
+        self.win=[False, -1]
 
 v=Game()
 
@@ -77,6 +86,46 @@ class Gamemode():
         self.after_move:Callable[[b.Board,int],None]
         self.end_of_turn:Callable[[b.Board],None]
         raise RuntimeError("This is a utility placeholder class that is not supposed to be instantiated. This is why you shouldn't try.")
+
+class Animation():
+    def __init__(self, eqn_type:b.Literal["linear","arc","custom","linear_eased","arc_eased"], limit:int, after:Callable|None, old_coords:Coord, new_coords:Coord, *args):
+        self.eqn_type=eqn_type
+        self.frame=0
+        self.limit=limit
+        self.after=after
+        self.old_coord=old_coords
+        self.new_coord=new_coords
+        self.args=args
+        if self.eqn_type == "linear" or self.eqn_type == "linear_eased":
+            self.velocity=((new_coords[0]-old_coords[0])/self.limit,(new_coords[1]-old_coords[1])/self.limit)
+        elif self.eqn_type == "arc" or self.eqn_type == "arc_eased":
+            self.velocity=ma.atan((new_coords[1]-old_coords[1])/(new_coords[0]-old_coords[0]))/self.limit
+
+    def new_value(self) -> Coord:
+        self.frame += 1
+        if self.frame == self.limit:
+            if isinstance(self.after,Callable):
+                return self.after
+            else:
+                return None
+        if self.eqn_type == "linear":
+            return self.velocity
+        elif self.eqn_type == "linear_eased":
+            return NotImplementedError
+            if self.limit >= 30:
+                ...
+            else:
+                ...
+        elif self.eqn_type == "arc":
+            return NotImplementedError
+        elif self.eqn_type == "arc_eased":
+            return NotImplementedError
+            if self.limit >= 30:
+                ...
+            else:
+                ...
+        elif self.eqn_type == "custom":
+            return (self.args[0](self.frame),self.args[1](self.frame))
 
 class Button():
     def __init__(self, centre:Coord, size:Coord, clickfunc:Callable, text:str, font:font.Font, text_colour:Colour=b.WHITE, colour:Color=b.GREENS[1], hover_colour:Color=b.GREENS[3], mousedown_colour:Colour=b.GREENS[2], shadow_colour:Colour=b.GREENS[0], toggle:bool=False, toggled_colour:Colour=None, toggled_shadow:Colour=None, unusable_colour:Colour=b.SHADES[3], unusable_shadow:Colour=b.SHADES[2]):
@@ -172,6 +221,14 @@ class Input():
                     self.text=self.control(self.text)
                     self.text_render=self.font.render(self.text,True,contrast(self.colour))
 
+class Static():
+    def __init__(self, centre:Coord, image:Surface):
+        self.position=image.get_rect(center=centre).topleft
+        self.image=image
+
+    def display(self, surface:Surface):
+        surface.blit(self.image, self.position)
+
 def gen_change_menu(final:str, sub:str):
     def change_menu(final_menu=final, sub=sub):
         v.additional=None
@@ -249,6 +306,8 @@ timer_text=Text("Timer:",msrt_norm,b.WHITE,(b.WIN_WIDTH/6,350))
 seconds_text=Text("Seconds",msrt_norm,b.WHITE,(2*b.WIN_WIDTH/6,430))
 increment_text=Text("Increment",msrt_norm,b.WHITE,(3*b.WIN_WIDTH/6,430))
 delay_text=Text("Delay",msrt_norm,b.WHITE,(4*b.WIN_WIDTH/6,430))
+white_win_text=Text("White won!",msrt_norm,b.BLACK,(b.WIN_WIDTH/2,300))
+black_win_text=Text("Black won!",msrt_norm,b.BLACK,(b.WIN_WIDTH/2,300))
 
 modes_button=Button((b.WIN_WIDTH/2,300),(800,100),gen_change_menu("modes","main"),"Select gamemode",msrt_norm)
 almanac_button=Button((b.WIN_WIDTH/2,500),(800,100),gen_change_menu("almanac","modes"),"Almanac",msrt_norm)
@@ -262,10 +321,15 @@ m_next_button=Button((2*b.WIN_WIDTH/3,b.WIN_HEIGHT-90),(200,70),gen_func("v.a_m_
 m_prev_button=Button((b.WIN_WIDTH/3,b.WIN_HEIGHT-90),(200,70),gen_func("v.a_m_offset -= 1"),"Prev",msrt_norm)
 p_next_button=Button((2*b.WIN_WIDTH/3,b.WIN_HEIGHT-90),(200,70),gen_func("v.a_p_offset += 1"),"Next",msrt_norm)
 p_prev_button=Button((b.WIN_WIDTH/3,b.WIN_HEIGHT-90),(200,70),gen_func("v.a_p_offset -= 1"),"Prev",msrt_norm)
+reset_button=Button((b.WIN_WIDTH/2,400),(400,70),v.reset,"Return to menu",msrt_norm)
 
 time_field=Input(b.SHADES[1],(200,70),(2*b.WIN_WIDTH/6,350),msrt_small,"0",int_check)
 inc_field=Input(b.SHADES[1],(200,70),(3*b.WIN_WIDTH/6,350),msrt_small,"0",int_check)
 del_field=Input(b.SHADES[1],(200,70),(4*b.WIN_WIDTH/6,350),msrt_small,"0",int_check)
+
+temp=Surface((450,300),SRCALPHA,32)
+draw.rect(temp,b.WHITE,Rect(0,0,450,300),border_radius=b.ROUNDNESS)
+win_bg=Static((b.WIN_WIDTH/2,350),temp)
 
 y_rails=[n*100 for n in range(b.WIN_HEIGHT//100+1)]
 x_rails=[n*100 for n in range(b.WIN_WIDTH//100+1)]
@@ -390,7 +454,7 @@ while v.running:
     elif v.menu == "game":
         v.prev_selected=v.selected
         temp=v.board.display(v.screen,mp,mu)
-        if mu:
+        if mu and not v.win[0]:
             if temp != None: #select a tile
                 v.selected=temp
             if temp == False or temp == None: #deselect a tile
@@ -400,16 +464,32 @@ while v.running:
                 v.selected.selected=False
                 v.prev_selected=None
                 v.selected=None
-                v.mode.after_move(v,v.board.turn)
+                v.mode.after_move(v)
             v.board.scrub()
+            locked, v.win[0], v.win[1]=v.mode.win(v)
             if v.selected != None: #redraw board state
                 if isinstance(v.selected.piece,b.Piece):
+                    for tile in locked:
+                        v.board.get(tile).locked=True
                     for tile in v.selected.piece.moves(v):
                         v.board.full_layout[tile[1]][tile[0]].move_target=True
                     for tile in v.selected.piece.capture_squares(v):
                         v.board.full_layout[tile[1]][tile[0]].capture_target=True
-                    for tile in v.mode.lock(v):
-                        v.board.get(tile).locked=True
+
+        if v.board.timers[0].tripped:
+            v.win=[True,1]
+            v.board.timers[1].activatable=False
+        elif v.board.timers[1].tripped:
+            v.win=[True,0]
+            v.board.timers[0].activatable=False
+
+        if v.win[0]:
+            win_bg.display(v.screen)
+            if v.win[1] == 1:
+                white_win_text.display(v.screen)
+            else:
+                black_win_text.display(v.screen)
+            reset_button.display(v.screen,mp,md,mu)
     
     if grid:
         draw_grid(v.screen)

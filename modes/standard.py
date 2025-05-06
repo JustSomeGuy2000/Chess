@@ -68,28 +68,28 @@ class WhitePawn(Piece):
         if (self.colour == 0 and self.parent.boardpos[1] == 0) or (self.colour == 1 and self.parent.boardpos[1] == 7):
             self.parent.propagate_options=True
 
-    def get_options(self, game:Game) -> OptionsBar:
-        queen_tile=Tile((0,0),"empty",Rect(0,0,0,0),None)
+    def get_options(self) -> OptionsBar:
+        queen_tile=Tile((0,0),"empty",Rect(0,0,0,0),self,None)
         if self.colour == 0:
             queen_tile.piece=WhiteQueen()
         else:
             queen_tile.piece=BlackQueen()
-        rook_tile=Tile((0,0),"empty",Rect(0,0,0,0),None)
+        rook_tile=Tile((0,0),"empty",Rect(0,0,0,0),self,None)
         if self.colour == 0:
             rook_tile.piece=WhiteRook()
         else:
             rook_tile.piece=BlackRook()
-        bishop_tile=Tile((0,0),"empty",Rect(0,0,0,0),None)
+        bishop_tile=Tile((0,0),"empty",Rect(0,0,0,0),self,None)
         if self.colour == 0:
             bishop_tile.piece=WhiteBishop()
         else:
             bishop_tile.piece=BlackBishop()
-        knight_tile=Tile((0,0),"empty",Rect(0,0,0,0),None)
+        knight_tile=Tile((0,0),"empty",Rect(0,0,0,0),self,None)
         if self.colour == 0:
             knight_tile.piece=WhiteKnight()
         else:
             knight_tile.piece=BlackKnight()
-        return OptionsBar(self, [queen_tile,rook_tile,bishop_tile,knight_tile],promote,game.board)
+        return OptionsBar(self, [queen_tile,rook_tile,bishop_tile,knight_tile],promote)
     
 class BlackPawn(Piece):
     def __init__(self):

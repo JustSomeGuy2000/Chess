@@ -453,7 +453,7 @@ while v.running:
     
     elif v.menu == "game":
         v.prev_selected=v.selected
-        temp=v.board.display(v.screen,mp,mu,v)
+        temp=v.board.display(v.screen,mp,mu)
         if mu and not v.win[0]:
             if temp != None: #select a tile
                 v.selected=temp

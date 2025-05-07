@@ -4,6 +4,7 @@ import modes as m
 import time as t
 import math as ma
 from modes import basic as b
+from modes import standard
 from pygame import *
 from collections.abc import Callable
 from os.path import join
@@ -54,6 +55,8 @@ class Game():
         self.board.construct((10,b.WIN_HEIGHT/2-(self.board.tile_dim[1]*self.board.height)/2),int(time_field.text),int(inc_field.text),int(del_field.text),msrt_small)
         self.board.populate(import_field.text)
         self.board.construct_img(b.CREAM_TILE,b.GREEN_TILE,None)
+        if hasattr(self.mode,"game_start"):
+            self.mode.game_start(self)
 
     def reset(self):
         self.menu="main"
@@ -85,7 +88,7 @@ class Gamemode():
         self.local_play:bool
         self.online_play:bool
         self.after_move:Callable[[b.Board,int],None]
-        self.end_of_turn:Callable[[b.Board],None]
+        self.after_capture:Callable[[Game,b.Tile],None]|None
         raise RuntimeError("This is a utility placeholder class that is not supposed to be instantiated. This is why you shouldn't try.")
 
 class Animation():
@@ -296,7 +299,12 @@ def paste_check(strinput:str) -> str:
 
 def copy_board():
     scrap.put(SCRAP_TEXT,v.board.internal_to_human().encode())
-    
+
+def concede():
+    v.win=[True,v.board.you]
+    v.menu="game"
+    v.submenu=None
+
 def gen_func(instr:str):
     def res_func(instr=instr):
         exec(instr)
@@ -320,6 +328,7 @@ white_win_text=Text("White won!",msrt_norm,b.BLACK,(b.WIN_WIDTH/2,300))
 black_win_text=Text("Black won!",msrt_norm,b.BLACK,(b.WIN_WIDTH/2,300))
 settings_text=Text("Settings",msrt_title,b.WHITE,(b.WIN_WIDTH/2,80))
 import_field_text=Text("Import setup",msrt_norm,b.WHITE,(b.WIN_WIDTH/2,b.WIN_HEIGHT-280))
+draw_text=Text("It was a draw.",msrt_norm,b.BLACK,(b.WIN_WIDTH/2,300))
 
 modes_button=Button((b.WIN_WIDTH/2,300),(800,100),gen_change_menu("modes","main"),"Select gamemode",msrt_norm)
 almanac_button=Button((b.WIN_WIDTH/2,500),(800,100),gen_change_menu("almanac","modes"),"Almanac",msrt_norm)
@@ -335,7 +344,9 @@ p_next_button=Button((2*b.WIN_WIDTH/3,b.WIN_HEIGHT-90),(200,70),gen_func("v.a_p_
 p_prev_button=Button((b.WIN_WIDTH/3,b.WIN_HEIGHT-90),(200,70),gen_func("v.a_p_offset -= 1"),"Prev",msrt_norm)
 reset_button=Button((b.WIN_WIDTH/2,400),(400,70),v.reset,"Return to menu",msrt_norm)
 settings_button=Button((b.WIN_WIDTH-150,50),(200,50),gen_change_menu("settings","main"),"Settings",msrt_small,colour=b.SHADES[2],hover_colour=b.SHADES[3],mousedown_colour=b.SHADES[1],shadow_colour=b.SHADES[1])
-copy_board_button=Button((b.WIN_WIDTH/2,250),(450,70),copy_board,"Copy board format",msrt_norm)
+copy_board_button=Button((b.WIN_WIDTH/2,250),(500,70),copy_board,"Copy board format",msrt_norm)
+quit_button=Button((b.WIN_WIDTH/2,350),(250,70),v.reset,"Quit",msrt_norm,colour=b.REDS[0],hover_colour=b.REDS[2],mousedown_colour=b.REDS[0],shadow_colour=b.REDS[1])
+concede_button=Button((b.WIN_WIDTH/2,350),(350,70),concede,"Concede",msrt_norm,colour=b.REDS[0],hover_colour=b.REDS[2],mousedown_colour=b.REDS[0],shadow_colour=b.REDS[1])
 
 time_field=Input(b.SHADES[1],(200,70),(2*b.WIN_WIDTH/6,350),msrt_small,"0",int_check)
 inc_field=Input(b.SHADES[1],(200,70),(3*b.WIN_WIDTH/6,350),msrt_small,"0",int_check)
@@ -373,10 +384,10 @@ for module in m.__all__:
         continue
     try:
         v.mode_infos[module]=temp.info
-        v.mode_info_buttons.append(Button((b.WIN_WIDTH/2,200+module_count%5 *100),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_change_additional(module),temp.info.name,msrt_norm))
-        v.mode_choose_buttons.append(Button((b.WIN_WIDTH/2,200+module_count%5 *100),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_compound_func(gen_change_submenu("players"),gen_set_gamemode(temp)),temp.info.name,msrt_norm))
+        v.mode_info_buttons.append(Button((b.WIN_WIDTH/2,200+module_count%5 *130),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_change_additional(module),temp.info.name,msrt_norm))
+        v.mode_choose_buttons.append(Button((b.WIN_WIDTH/2,200+module_count%5 *130),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_compound_func(gen_change_submenu("players"),gen_set_gamemode(temp)),temp.info.name,msrt_norm))
     except AttributeError:
-        v.mode_info_buttons.append(Button((b.WIN_WIDTH/2,200+module_count%5 *100),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_change_additional(None),"Incorrect Format",msrt_norm))
+        v.mode_info_buttons.append(Button((b.WIN_WIDTH/2,200+module_count%5 *130),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_change_additional(None),"Incorrect Format",msrt_norm))
     module_count += 1
     try:
         temp_i:b.Info=getattr(temp,"piece_infos")
@@ -478,21 +489,44 @@ while v.running:
             if temp == False or temp == None: #deselect a tile
                 v.selected=None
             if v.selected != None and (v.selected.move_target or v.selected.capture_target): #move a piece
+                capture=False
+                if isinstance(v.selected.piece, b.Piece):
+                    capture=True
+                if capture and (not hasattr(v.selected.piece, "pointless") or not v.selected.piece.pointless):
+                    v.board.pointless=0
+                else:
+                    v.board.pointless += 1
                 v.prev_selected.piece.move_to(v.selected,v)
+                if hasattr(v.mode,"after_capture") and capture:
+                    v.mode.after_capture(v,v.selected)
                 v.selected.selected=False
                 v.prev_selected=None
                 v.selected=None
-                v.mode.after_move(v)
+                if hasattr(v.mode,"after_move"):
+                    v.mode.after_move(v)
+                else:
+                    standard.after_move(v)
             v.board.scrub()
-            locked, v.win[0], v.win[1]=v.mode.win(v)
+            if hasattr(v.mode,"win"):
+                locked, v.win[0], v.win[1]=v.mode.win(v)
+            else:
+                locked, v.win[0], v.win[1]=b.Rules.win(v)
             if v.selected != None: #redraw board state
                 if isinstance(v.selected.piece,b.Piece):
                     for tile in locked:
                         v.board.get(tile).locked=True
-                    for tile in v.selected.piece.moves(v):
-                        v.board.full_layout[tile[1]][tile[0]].move_target=True
-                    for tile in v.selected.piece.capture_squares(v):
-                        v.board.full_layout[tile[1]][tile[0]].capture_target=True
+                    if hasattr(v.mode,"move_filter"):
+                        for tile in v.mode.move_filter(v.selected.piece.moves(v),v):
+                            v.board.get(tile).move_target=True
+                    else:
+                        for tile in v.selected.piece.moves(v):
+                            v.board.get(tile).move_target=True
+                    if hasattr(v.mode,"capture_filter"):
+                        for tile in v.mode.capture_filter(v.selected.piece.capture_squares(v),v):
+                            v.board.get(tile).capture_target=True
+                    else:
+                        for tile in v.selected.piece.capture_squares(v):
+                            v.board.get(tile).capture_target=True
 
         if v.board.timers[0].tripped:
             v.win=[True,1]
@@ -508,12 +542,17 @@ while v.running:
             else:
                 black_win_text.display(v.screen)
             reset_button.display(v.screen,mp,md,mu)
+        if v.win[0] == None:
+            win_bg.display(v.screen)
+            reset_button.display(v.screen,mp,md,mu)
+            draw_text.display(v.screen)
     
     elif v.menu == "settings":
         back_button.display(v.screen,mp,md,mu)
         settings_text.display(v.screen)
         if v.last_menu == "game":
             copy_board_button.display(v.screen,mp,md,mu)
+            quit_button.display(v.screen,mp,md,mu)
 
     if v.menu != "settings":
         settings_button.display(v.screen,mp,md,mu)

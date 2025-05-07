@@ -19,6 +19,7 @@ class WhitePawn(Piece):
         super().__init__("Pawn",1,0,join(PCS_IMG_DIR,"pawn_w.png"))
         self.en_passantable=False
         self.moved=False
+        self.pointless=True
 
     def moves(self, game:Game) -> list[BoardCoord]:
         '''Every square the piece can move to (excluding captures). Most of the time, a few calls to Movement functions are enough.'''
@@ -97,6 +98,7 @@ class BlackPawn(Piece):
         self.en_passantable=False
         self.moved=False
         self.get_options=partial(WhitePawn.get_options,self)
+        self.pointless=True
 
     def moves(self, game:Game) -> list[BoardCoord]:
         '''Every square the piece can move to (excluding captures). Most of the time, a few calls to Movement functions are enough.'''
@@ -286,7 +288,7 @@ class BlackKing(Piece):
         self.move_to=partial(WhiteKing.move_to,self)
 
 def after_move(game:Game):
-    '''Things to do after a move. Col is the colour number of the player who made the move.'''
+    '''Things to do after a move.'''
     for row in game.board.full_layout:
         for tile in row:
             if isinstance(tile.piece,(WhitePawn,BlackPawn)) and tile.piece.colour != game.board.turn:
@@ -304,8 +306,6 @@ STD_INIT_POS:list[str]=["rnbqkbnr","pppppppp","8","8","8","8","PPPPPPPP","RNBQKB
 
 hidden=False
 board=Board(8,8,["8","8","8","8","8","8","8","8"],piecesdict=STD_PCS_DICT,initpos=STD_INIT_POS)
-lock=Rules.lock
-win=Rules.win
 
 pawn_info=Info("Pawn","The most numerous piece on the board.","Little guys that usually can only go one step forward, but can take two steps on their first move. They capture differently, doing so one step forward diagonally in either direction. Can promote on the last row of the board. Experienced players can also make use of the abstruse method termed \"en passant\".",join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,"piece")
 bishop_info=Info("Bishop","Snipers that really come into play after the early-game.","Moves and captures infinitely diagonally. A useful piece for sniping and plugging gaps, but its sieve-like capture structure and inability to move to more than half the squares on the board mean it is not as useful alone.",join(PCS_IMG_DIR,"bishop_w.png"),GREEN_TILE,"piece")
@@ -324,7 +324,6 @@ for piece_info in piece_infos:
     piece_info.set_links([info])
     piece_info.construct()
 
-interpret=Rules.interpret
 local_play=True
 online_play=False
 

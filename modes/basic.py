@@ -37,6 +37,7 @@ POCKET_ANCHORS=([100,1000],[100,100])
 
 SHADES:list[Colour]=[(40,40,40),(55, 55, 55),(92, 92, 92),(131, 131, 131),(177, 177, 177),(233, 233, 233)]
 GREENS:list[Colour]=[(69,117,60),(129,182,76),(152,193,91),(160,210,96)]
+REDS:list[Colour]=[(255,0,0),(245,60,60),(245,130,130),(245,155,155)]
 ORANGE:Colour=(252,175,0)
 WHITE:Colour=(255,255,255)
 BLACK:Colour=(0,0,0)
@@ -207,7 +208,7 @@ class Timer():
 
 class Piece(sprite.Sprite):
     '''A piece. Does not display itself, that's the Tile's job.'''
-    def __init__(self, name:str, value:int, colour:Literal[0,1,2], sprite:str, check_target:bool=False, initpos:BoardCoord|None=None):
+    def __init__(self, name:str, value:int, colour:Literal[0,1,"all"], sprite:str, check_target:bool=False, initpos:BoardCoord|None=None):
         '''Attributes common to all pieces'''
         super().__init__()
         self.name=name
@@ -248,8 +249,10 @@ class Piece(sprite.Sprite):
         final.piece=self
         self.parent=final
 
-    def get_options(self) -> OptionsBar:
-        return
+    def belongs_to(self, colour:int) -> bool:
+        if self.colour == colour or self.colour == "all":
+            return True
+        return False
 
 class Tile():
     '''A container for tile information. Is True if there it contains a piece, is False otherwise'''
@@ -325,9 +328,11 @@ class Board():
         self.turn_number:int=0
         self.arrows:list[Arrow]|list[None]=[]
         self.timers:list[Timer]=[]
+        self.pointless:int=0
 
-    def construct(self, anchor:Coord, amt:int|float, inc:int, delay:int, timerfont:font.Font):
+    def construct(self, anchor:Coord, amt:int|float, inc:int, delay:int, timerfont:font.Font, you:int=0):
         '''Creates a list of lists representing the full board without intial pieces placed. Spaces with tiles are called "empty". For non-quadrilateral boards, non-tile spaces are called "void".'''
+        self.you=you
         self.anchor=anchor
         result=[]
         count=0
@@ -603,7 +608,7 @@ class Movement():
     
     @staticmethod
     def line(dir:int, step:int, max:int, limit:int, coord:BoardCoord, game:Game) -> Generator:
-        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
+        if not game.board.full_layout[coord[1]][coord[0]].piece.belongs_to(game.board.turn):
             return
         count=0
         max+=copysign(1,step)
@@ -617,7 +622,7 @@ class Movement():
     
     @staticmethod
     def diagonal(step_x:int, step_y:int, max_x:int, max_y:int, limit:int, coord:BoardCoord, game:Game) -> Generator:
-        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
+        if not game.board.full_layout[coord[1]][coord[0]].piece.belongs_to(game.board.turn):
             return
         count=0
         max_x+=int(copysign(1,step_x))
@@ -664,7 +669,7 @@ class Movement():
     @staticmethod
     def l_shape(max:tuple[int,int,int,int], limit:int, coord:BoardCoord, game:Game, lenx:int, leny:int) -> Generator:
         '''Maxes are forward, backward, left, right, in that order.'''
-        if game.board.turn != game.board.get(coord).piece.colour:
+        if not game.board.get(coord).piece.belongs_to(game.board.turn):
             return
         units=[(leny,lenx),(leny,-lenx),(-leny,lenx),(-leny,-lenx),(lenx,leny),(lenx,-leny),(-lenx,leny),(-lenx,-leny)]
         for combo in units:
@@ -675,7 +680,7 @@ class Movement():
 
     @staticmethod
     def anywhere(game:Game, coord:BoardCoord):
-        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour:
+        if not game.board.full_layout[coord[1]][coord[0]].piece.belongs_to(game.board.turn):
             return
         height=len(game.board.full_layout)
         width=len(game.board.full_layout[0])
@@ -687,7 +692,7 @@ class Movement():
 class Capture():
     @staticmethod
     def line(dir:int, step:int, max:int, limit:int, coord:BoardCoord, game:Game, col:int, hypo:bool=False) -> Generator:
-        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour and not hypo:
+        if not game.board.full_layout[coord[1]][coord[0]].piece.belongs_to(game.board.turn) and not hypo:
             return
         count=0
         max+=copysign(1,step)
@@ -695,18 +700,18 @@ class Capture():
         coord[dir] += step
         while coord[dir] != max and count < limit:
             count+=1
-            if (game.board.get(coord).piece != None and game.board.get(coord).piece.colour != col) or hypo:
+            if (game.board.get(coord).piece != None and not game.board.get(coord).piece.belongs_to(col)) or hypo:
                 if not game.board.get(coord).locked:
                     yield tuple(coord)
-                if (game.board.get(coord).piece != None and game.board.get(coord).piece.colour != col):
+                if (game.board.get(coord).piece != None and not game.board.get(coord).piece.belongs_to(col)):
                     return
-            if game.board.get(coord).piece != None and game.board.get(coord).piece.colour == col:
+            if game.board.get(coord).piece != None and game.board.get(coord).piece.belongs_to(col):
                 return
             coord[dir] += step
     
     @staticmethod
     def diagonal(step_x:int, step_y:int, max_x:int, max_y:int, limit:int, coord:BoardCoord, game:Game, col:int, hypo:bool=False) -> Generator:
-        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour and not hypo:
+        if not game.board.full_layout[coord[1]][coord[0]].piece.belongs_to(game.board.turn) and not hypo:
             return
         count=0
         max_x+=int(copysign(1,step_x))
@@ -715,12 +720,12 @@ class Capture():
         next_y=coord[1]+int(copysign(count+1,step_y))
         while next_x != max_x and next_y != max_y and count < limit:
             count += 1
-            if (game.board.get(next_x,next_y).piece != None and game.board.get(next_x,next_y).piece.colour != col) or hypo:
+            if (game.board.get(next_x,next_y).piece != None and not game.board.get(next_x,next_y).piece.belongs_to(col)) or hypo:
                 if not game.board.get(next_x,next_y).locked:
                     yield (next_x,next_y)
-                if game.board.get(next_x,next_y).piece != None and game.board.get(next_x,next_y).piece.colour != col:
+                if game.board.get(next_x,next_y).piece != None and not game.board.get(next_x,next_y).piece.belongs_to(col):
                     return
-            if game.board.get(next_x,next_y).piece != None and game.board.get(next_x,next_y).piece.colour == col:
+            if game.board.get(next_x,next_y).piece != None and game.board.get(next_x,next_y).piece.belongs_to(col):
                 return
             next_x=coord[0]+int(copysign(count+1,step_x))
             next_y=coord[1]+int(copysign(count+1,step_y))
@@ -747,26 +752,26 @@ class Capture():
     @staticmethod
     def l_shape(max:tuple[int,int,int,int], limit:int, coord:BoardCoord, game:Game, lenx:int, leny:int, col:int, hypo:bool=False) -> Generator:
         '''Maxes are forward, backward, left, right, in that order.'''
-        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour and not hypo:
+        if not game.board.full_layout[coord[1]][coord[0]].piece.belongs_to(game.board.turn) and not hypo:
             return
         units=[(leny,lenx),(leny,-lenx),(-leny,lenx),(-leny,-lenx),(lenx,leny),(lenx,-leny),(-lenx,leny),(-lenx,-leny)]
         for combo in units:
             for i in range(limit):
                 next_val=(coord[0]+combo[0]*(i+1),coord[1]+combo[1]*(i+1))
-                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and ((game.board.get(next_val).piece != None and game.board.get(next_val).piece.colour != col) or hypo) and not game.board.get(next_val).locked:
+                if max[2] <= next_val[0] <= max[3] and max[0] <= next_val[1] <= max[1] and ((game.board.get(next_val).piece != None and not game.board.get(next_val).piece.belongs_to(col)) or hypo) and not game.board.get(next_val).locked:
                     yield next_val
-                    if (game.board.get(next_val).piece != None and game.board.get(next_val).piece.colour != col):
+                    if (game.board.get(next_val).piece != None and not game.board.get(next_val).piece.belongs_to(col)):
                         break
 
     @staticmethod
     def anywhere(game:Game, col:int, coord:BoardCoord, hypo:bool=False):
-        if game.board.turn != game.board.full_layout[coord[1]][coord[0]].piece.colour and not hypo:
+        if not game.board.full_layout[coord[1]][coord[0]].piece.belongs_to(game.board.turn) and not hypo:
             return
         height=len(game.board.full_layout)
         width=len(game.board.full_layout[0])
         for y in range(height):
             for x in range(width):
-                if game.board.full_layout[y][x].piece != None and game.board.full_layout[y][x].piece.colour != col and not game.board.get(x,y).locked:
+                if game.board.full_layout[y][x].piece != None and not game.board.full_layout[y][x].piece.belongs_to(col) and not game.board.get(x,y).locked:
                     yield game.board.full_layout[y][x].boardpos
 
 BRICK_WALL=Piece("Brick Wall",-1,-1,join(PCS_IMG_DIR,"pawn_w.png"))
@@ -777,12 +782,16 @@ class Rules():
         '''A generalisation of checkmate. Returns whether or not a win has occurred, and which side has won. Is checkmate by default. pieces is a list of movable Pieces.'''
         '''If the piece is in check, it can be unchecked by movement, occulsion or capturing the checking piece. If the piece has no possible moves, none of your pieces can move to occlusion squares, and none of your pieces can capture the checking piece, checkmate is reached.'''
         info=Rules.lock(game,True)
+        colour=game.board.turn
         if info == []:
             return [], False, game.board.turn
+        if info == None or game.board.pointless > 75:
+            return [], None, -1
+        if info == True:
+            return [], True, colour
         locked, squares_to_occlude, possible_moves, attacking_pieces, target=info
         squares_to_occlude=denest(squares_to_occlude,1)
-        colour=game.board.turn
-        yourpieces=[tile.piece for tile in game.board.get_matching(lambda t: True if t.piece != None and t.piece.colour == colour else False)]
+        yourpieces=[tile.piece for tile in game.board.get_matching(lambda t: True if t.piece != None and t.piece.belongs_to(colour) else False)]
 
         if info != None:
             if possible_moves != []: #check if no possible moves. If there are none, proceed to next check
@@ -814,6 +823,16 @@ class Rules():
             if temp != None:
                 squares.extend(piece.capture_squares(game,True))
         return squares
+    
+    @staticmethod
+    def gen_move_squares(game:Game, pcs:list[Piece]) -> list[BoardCoord]:
+        '''Return the list of squares that the specified pieces can currently capture on'''
+        squares:list[BoardCoord]=[]
+        for piece in pcs:
+            temp=piece.moves(game)
+            if temp != None:
+                squares.extend(piece.moves(game))
+        return squares
 
     @staticmethod
     def lock(game:Game, returnall:bool=False):
@@ -824,14 +843,17 @@ class Rules():
         Check is exited if the King moves into an un-attacked square, if the attacking piece is blocked, or if the attaking piece is captured. Thus, the squares that can be moved to are the safe moves for the checked piece, line-of-sight squares of all the attacking pieces, and the attacking piece itself.'''
 
         colour=game.board.turn
-        target=game.board.get_matching(lambda t: True if t.piece != None and t.piece.royal and t.piece.colour == colour else False)[0].piece
-        if target == []:
-            return []
+        royals=game.board.get_matching(lambda t: True if t.piece != None and t.piece.royal and t.piece.belongs_to(colour) else False)
+        if royals == []:
+            return True
+        target=royals[0].piece
         check=False #whether the target is in check
         possible_moves=target.moves(game) #the target's possible moves when not checked
         attacking_pieces:list[Piece]=[] #the pieces attacking the target
         not_locked=[] #board spaces that are not locked
-        enemypieces=[tile.piece for tile in game.board.get_matching(lambda t: True if t.piece != None and t.piece.colour != target.colour else False)]
+        enemypieces=[tile.piece for tile in game.board.get_matching(lambda t: True if t.piece != None and not t.piece.belongs_to(target.colour) else False)]
+        yourpieces=[tile.piece for tile in game.board.get_matching(lambda t: True if t.piece != None and t.piece.belongs_to(target.colour) else False)]
+        your_moves=Rules.gen_move_squares(game, yourpieces) + Rules.gen_capture_squares(game, yourpieces)
 
         for piece in enemypieces: #check if the target is in check and which pieces are checking it
             for square in piece.capture_squares(game,True):
@@ -839,8 +861,10 @@ class Rules():
                     check=True
                     attacking_pieces.append(piece)
      
-        if not check:
+        if not check and your_moves != []:
             return []
+        elif not check and your_moves == []:
+            return None
         else:
             not_locked.extend(target.moves(game)) #squares the target can move to are not locked (obviously)
 

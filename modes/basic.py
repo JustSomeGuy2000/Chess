@@ -265,7 +265,6 @@ class Tile():
         self.capture_target:bool=False
         self.locked:bool=False #whether this Tile can be moved to.
         self.selected=False
-        self.propagate_options:bool=False
 
     def __repr__(self):
         return f"<Tile at {str(self.boardpos)} containing {self.piece.__repr__()}>"
@@ -279,13 +278,8 @@ class Tile():
         else:
             return False
 
-    def display(self, surface:Surface, mp:Coord, mu:bool) -> tuple[Tile|None|False,OptionsBar|None]:
+    def display(self, surface:Surface, mp:Coord, mu:bool) -> Tile|None|False:
         '''Display the piece at its position. Returns itself if clicked, or False if deselected. Returns None otherwise.'''
-        if self.propagate_options:
-            temp=self.piece.get_options()
-            self.propagate_options=False
-        else:
-            temp=None
         if isinstance(self.piece, Piece): #show piece
             surface.blit(self.piece.image, (self.rect.x,self.rect.y))
         if self.move_target: #if target for move
@@ -299,15 +293,18 @@ class Tile():
             self.selected=False
         if mu and self.rect.collidepoint(mp) and self.selected: #if clicked again
             self.selected=False
-            return False, temp
+            return False
         if self.rect.collidepoint(mp) and mu and (isinstance(self.piece,Piece) or self.capture_target or self.move_target): #if clicked
             self.selected=True
-            return self, temp
+            return self
         else:
-            return None, temp
+            return None
         
-    def _propagate_options(self, options:OptionsBar):
-        ...
+    def propagate_options(self, options:OptionsBar):
+        if isinstance(self.parent, Board):
+            self.parent.active_options=options
+        else:
+            raise TypeError("And what exactly are you propagating to?")
 
 class Board():
     '''Everything to do with the construction and management of boards.'''
@@ -364,9 +361,24 @@ class Board():
         self.rect=Rect(anchor[0],anchor[1],self.tile_dim[0]*self.width,self.tile_dim[1]*self.height)
         self.timers=(Timer(amt,inc,delay,(self.get_width()+20,self.anchor[0]+timerfont.get_height()),timerfont),Timer(amt,inc,delay,(self.get_width()+20,self.get_height()-10-timerfont.get_height()),timerfont,active=True))
     
-    def populate(self):
+    def populate(self, custom_initpos:str|None=None):
         full_board=self.full_layout
         '''Takes in a constructed board and populates it with pieces.'''
+        extras=False
+        if custom_initpos != None:
+            try:
+                args=custom_initpos.split(" ")
+                temp=self.human_to_internal(args.pop(0))
+            except TypeError:
+                pass
+            else:
+                self.initpos=temp
+                try:
+                    self.check_extras(args,temp)
+                except TypeError:
+                    pass
+                else:
+                    extras=True
         if self.initpos != None and self.piecesdict != None:
             for i in range(len(self.initpos)):
                 cur_pos=0
@@ -381,6 +393,8 @@ class Board():
                     else:
                         raise TypeError(f"Invalid value: {code}")
         self.full_layout=full_board
+        if extras:
+            self.extras_human_to_internal(args)
     
     def construct_img(self, light:Surface, dark:Surface, void:Surface, whole:Surface|None=None):
         tile_dim=self.tile_dim[0]
@@ -412,12 +426,11 @@ class Board():
         for row in self.full_layout:
             for tile in row:
                 temp=tile.display(surface,mp,mu)
-                if temp[0] != None and (self.active_options == None or (isinstance(self.active_options, OptionsBar) and self.active_options.optional)):
-                    perm=temp[0]
-                if isinstance(temp[1],OptionsBar):
-                    temp[1].anchor(self.anchor[0]+self.get_width()+10,self.anchor[1]+self.get_height()/2)
-                    self.active_options=temp[1]
+                if temp != None and (self.active_options == None or (isinstance(self.active_options, OptionsBar) and self.active_options.optional)):
+                    perm=temp
         if isinstance(self.active_options, OptionsBar):
+            if not self.active_options.anchored:
+                self.active_options.anchor(self.anchor[0]+self.get_width()+10,self.anchor[1]+self.get_height()/2)
             remove_options=self.active_options.display(surface, mp, mu, perm)
             if remove_options:
                 self.active_options=None
@@ -482,6 +495,92 @@ class Board():
     
     def get_height(self) -> int:
         return self.height*self.tile_dim[1]+self.anchor[1]
+
+    def human_to_internal(self, arg:str) -> list[str]:
+        arg=arg.split("/")
+        if len(arg) != self.height:
+            raise TypeError("Translation failed.")
+        pieceslist=list(self.piecesdict.keys())
+        for row in arg:
+            row_length=0
+            for char in row:
+                if char in numbers:
+                    row_length += int(char)
+                elif char in pieceslist:
+                    row_length += 1
+                else:
+                    raise TypeError("Translation failed.")
+            if row_length != self.width:
+                raise TypeError("Translation failed.")
+        return arg
+
+    def internal_to_human(self) -> str:
+        result=''
+        reverse_piecedict={self.piecesdict[value]:value for value in self.piecesdict}
+        for row in self.full_layout:
+            empty_counter=0
+            for tile in row:
+                if isinstance(tile.piece, Piece):
+                    if empty_counter > 0:
+                        result += str(empty_counter)
+                        empty_counter=0
+                    result += reverse_piecedict[type(tile.piece)]
+                else:
+                    empty_counter += 1
+            if empty_counter > 0:
+                result += str(empty_counter)
+            empty_counter=0
+            if row != self.full_layout[-1]:
+                result += "/"
+        result += " "
+        result += "w " if self.turn == 0 else "b "
+        result += "KQkq "
+        tiles = self.get_matching(lambda t: True if t.piece == None and hasattr(t.piece,"en_passantable") and t.piece.en_passantable else False)
+        for tile in tiles:
+            result += letters.index(tile.boardpos[1]+1)
+            result += str(tile.boardpos[0])+" "
+        if tiles == []:
+            result += "- "
+        result += "0 "
+        result += str(self.turn_number)
+        return result
+    
+    def check_extras(self, arg:list[str], layout:list[str]):
+        if arg == []:
+            return
+        if arg[0] not in ["w","b"]:
+            raise TypeError
+        if "K" in arg[1] and (layout[7][4] != "K" or layout[7][7] != "R"):
+            raise TypeError
+        if "Q" in arg[1] and (layout[7][4] != "K" or layout[7][0] != "R"):
+            raise TypeError
+        if "k" in arg[1] and (layout[0][4] != "k" or layout[0][7] != "r"):
+            raise TypeError
+        if "q" in arg[1] and (layout[0][4] != "k" or layout[0][0] != "r"):
+            raise TypeError
+        if arg[2] != "-" and layout[int(arg[2][1])-1][letters.index(arg[2][0])-1] not in ["P","p"]:
+            raise TypeError
+        try:
+            int(arg[3])
+            int(arg[4])
+        except:
+            raise TypeError
+
+    def extras_human_to_internal(self, arg:list[str]):
+        if arg == []:
+            return
+        self.turn=0 if arg[0] == "w" else 1
+        if "K" not in arg[1]:
+            self.get(7,7).has_moved=True
+        if "Q" not in arg[1]:
+            self.get(0,7).has_moved=True
+        if "k" not in arg[1]:
+            self.get(7,0).has_moved=True
+        if "q" not in arg[1]:
+            self.get(0,0).has_moved=True
+        if arg[2] != "-":
+            self.get(letters.index(arg[2][0])-1,int(arg[2][1])-1).en_passantable=True
+        self.turn_number=int(arg[4])
 
 class Movement():
     @staticmethod
@@ -798,6 +897,7 @@ class OptionsBar():
         self.active_choice:Tile|None=None
         self.message=message
         self.optional=optional
+        self.anchored:bool=False
         self.height:int=0
         for i in range(len(self.contains)):
             self.contains[i].rect.width=STD_TILEDIM[0]
@@ -812,15 +912,16 @@ class OptionsBar():
             self.contains[i].rect.y=centre_y-self.height/2+STD_TILEDIM[0]*i
         if isinstance(self.message, Surface):
             self.message_anchor=(self.contains[0].rect.x+self.contains[0].rect.width+10, centre_y-self.message.get_height()/2)
+        self.anchored=True
 
     def display(self, surface:Surface, mp:Coord, mu:bool, clicked_tile:Tile|None) -> bool:
         if isinstance(self.message, Surface):
             surface.blit(self.message, self.message_anchor)
         for tile in self.contains:
             clicked=tile.display(surface,mp,mu)
-            if isinstance(clicked[0], Tile):
-                self.selected=clicked[0]
-            elif clicked[0] == False:
+            if isinstance(clicked, Tile):
+                self.selected=clicked
+            elif clicked == False:
                 self.selected=None
         if isinstance(self.selected,Tile):
             if not self.choose_tile:
@@ -845,9 +946,9 @@ class Pocket():
     def display(self, surface:Surface, mp:Coord, mu:bool, clicked_tile:Tile|None):
         for tile in self.contains:
             selected=tile.display(surface,mp,mu)
-            if isinstance(selected[0], Tile):
-                self.selected=selected[0]
-            elif selected[0] == False:
+            if isinstance(selected, Tile):
+                self.selected=selected
+            elif selected == False:
                 self.selected=None
         if isinstance(self.selected, Tile) and isinstance(clicked_tile, Tile):
             self.clickfunc(self.selected, clicked_tile)

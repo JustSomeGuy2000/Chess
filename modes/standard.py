@@ -44,12 +44,12 @@ class WhitePawn(Piece):
             target=game.board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]-1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
                 temp=itertools.chain(temp,[target.parent.boardpos])
-                game.board.arrows.append(Arrow(game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1])),game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1]-1))))
+                #game.board.arrows.append(Arrow(game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1])),game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1]-1))))
         if right:
             target=game.board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]+1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
                 temp=itertools.chain(temp,[target.parent.boardpos])
-                game.board.arrows.append(Arrow(game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1])),game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1]-1))))
+                #game.board.arrows.append(Arrow(game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1])),game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1]-1))))
         return temp
 
     def move_to(self, final:Tile, game:Game):
@@ -66,7 +66,7 @@ class WhitePawn(Piece):
         self.parent.piece=None
         self.parent=final
         if (self.colour == 0 and self.parent.boardpos[1] == 0) or (self.colour == 1 and self.parent.boardpos[1] == 7):
-            self.parent.propagate_options=True
+            self.get_options()
 
     def get_options(self) -> OptionsBar:
         queen_tile=Tile((0,0),"empty",Rect(0,0,0,0),self,None)
@@ -89,7 +89,7 @@ class WhitePawn(Piece):
             knight_tile.piece=WhiteKnight()
         else:
             knight_tile.piece=BlackKnight()
-        return OptionsBar(self, [queen_tile,rook_tile,bishop_tile,knight_tile],promote)
+        self.parent.propagate_options(OptionsBar(self, [queen_tile,rook_tile,bishop_tile,knight_tile],promote))
     
 class BlackPawn(Piece):
     def __init__(self):
@@ -122,12 +122,12 @@ class BlackPawn(Piece):
             target=game.board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]-1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
                 temp=itertools.chain(temp,[target.parent.boardpos])
-                game.board.arrows.append(Arrow(game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1])),game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1]+1))))
+                #game.board.arrows.append(Arrow(game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1])),game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1]+1))))
         if right:
             target=game.board.full_layout[self.parent.boardpos[1]][self.parent.boardpos[0]+1].piece
             if isinstance(target,Piece) and target.name == "Pawn" and target.en_passantable:
                 temp=itertools.chain(temp,[target.parent.boardpos])
-                game.board.arrows.append(Arrow(game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1])),game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1]+1))))
+                #game.board.arrows.append(Arrow(game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1])),game.board.board_to_coord((target.parent.boardpos[0],target.parent.boardpos[1]+1))))
         return temp
 
     def move_to(self, final:Tile, game:Game) -> Piece:
@@ -300,7 +300,7 @@ def end_of_turn(game:Game):
     pass
 
 STD_PCS_DICT:dict[str,type]={"P":WhitePawn,"p":BlackPawn,"B":WhiteBishop,"b":BlackBishop,"N":WhiteKnight,"n":BlackKnight,"R":WhiteRook,"r":BlackRook,"Q":WhiteQueen,"q":BlackQueen,"K":WhiteKing,"k":BlackKing}
-STD_INIT_POS:list[list[str]]=["rnbqkbnr","pppppppp","8","8","8","8","PPPPPPPP","RNBQKBNR"]
+STD_INIT_POS:list[str]=["rnbqkbnr","pppppppp","8","8","8","8","PPPPPPPP","RNBQKBNR"]
 
 hidden=False
 board=Board(8,8,["8","8","8","8","8","8","8","8"],piecesdict=STD_PCS_DICT,initpos=STD_INIT_POS)

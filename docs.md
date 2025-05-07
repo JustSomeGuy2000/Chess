@@ -1,17 +1,13 @@
 # To-do:
-CURRENT: Allow OptionsBar to choose a tile on the board
+Settings
 Pins are not per piece, but rather included in Rules.lock()?
 Finish adding animations
 Implement decorator that handles all the move validation, so actual movement functions only have to focus on generation
 Implement draws (stalemate, 50-move, 5-fold repetition or insufficient material)
-Add higher-level features (options bar, pocket)
 Implement a function to manually set the current player, targetable squares, and target (makes cheese-like functions easier)
 Extra move options (for variants like beirut chess, where there is an option to detonate)
-Custom positions (loaded in from FEN)
-Position exporting (in PGN or FEN)
 Manual piece-placing option? (for certain variants)
 Manual army choosing? (for some variants)
-Pocket-like space (for some variants)
 Remove debug stuff (grid, mouse position, tiles showing if they are locked)
 
 # Modes to add:

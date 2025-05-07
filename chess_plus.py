@@ -18,6 +18,7 @@ type BoardLayout=list[list[Tile]]
 type Colour=tuple[int,int,int]
 
 display.init()
+scrap.init()
 key.set_repeat(500,125)
 
 class Game():
@@ -51,7 +52,7 @@ class Game():
     def begin(self):
         self.board=copy.copy(self.mode.board)
         self.board.construct((10,b.WIN_HEIGHT/2-(self.board.tile_dim[1]*self.board.height)/2),int(time_field.text),int(inc_field.text),int(del_field.text),msrt_small)
-        self.board.populate()
+        self.board.populate(import_field.text)
         self.board.construct_img(b.CREAM_TILE,b.GREEN_TILE,None)
 
     def reset(self):
@@ -182,7 +183,7 @@ class Text():
         surface.blit(self.text,self.pos)
 
 class Input():
-    def __init__(self,colour:Colour,size:Coord,centre:Coord,font:font.Font,plc_text:str=None,control:Callable=lambda s: s):
+    def __init__(self,colour:Colour,size:Coord,centre:Coord,font:font.Font,plc_text:str='',control:Callable=lambda s: s):
         self.colour=colour
         self.text=plc_text
         self.centre=centre
@@ -194,7 +195,7 @@ class Input():
         self.rect=Rect(centre[0]-size[0]/2,centre[1]-size[1]/2,size[0],size[1])
         self.text_render:Surface=font.render(plc_text,True,b.WHITE)
 
-    def display(self,surface:Surface,mp:Coord,md:bool,key:event.Event=None):
+    def display(self,surface:Surface,mp:Coord,md:bool,key:event.Event=None,mods:int=0):
         if md:
             if self.rect.collidepoint(mp):
                 self.active=True
@@ -210,16 +211,19 @@ class Input():
                 if key.key == K_BACKSPACE:
                     if len(self.text) == 1:
                         self.text=self.plc_text
-                        self.text_render=self.font.render(self.plc_text,True,contrast(self.colour))
                     else:
                         self.text=self.control(self.text[:-1])
-                        self.text_render=self.font.render(self.text,True,contrast(self.colour))
                 elif key.key in [K_RETURN,K_TAB,K_ESCAPE]:
                     self.active=False
+                elif mods&KMOD_CTRL and key.key == K_v:
+                    try:
+                        self.text += self.control(scrap.get(SCRAP_TEXT).decode())
+                    except:
+                        pass
                 else:
                     self.text += key.unicode
                     self.text=self.control(self.text)
-                    self.text_render=self.font.render(self.text,True,contrast(self.colour))
+                self.text_render=self.font.render(self.text,True,contrast(self.colour))
 
 class Static():
     def __init__(self, centre:Coord, image:Surface):
@@ -287,6 +291,12 @@ def int_check(input:str) -> str:
     except:
         return input[:-1]
     
+def paste_check(strinput:str) -> str:
+    return "".join(strinput.split("\x00"))
+
+def copy_board():
+    scrap.put(SCRAP_TEXT,v.board.internal_to_human().encode())
+    
 def gen_func(instr:str):
     def res_func(instr=instr):
         exec(instr)
@@ -308,6 +318,8 @@ increment_text=Text("Increment",msrt_norm,b.WHITE,(3*b.WIN_WIDTH/6,430))
 delay_text=Text("Delay",msrt_norm,b.WHITE,(4*b.WIN_WIDTH/6,430))
 white_win_text=Text("White won!",msrt_norm,b.BLACK,(b.WIN_WIDTH/2,300))
 black_win_text=Text("Black won!",msrt_norm,b.BLACK,(b.WIN_WIDTH/2,300))
+settings_text=Text("Settings",msrt_title,b.WHITE,(b.WIN_WIDTH/2,80))
+import_field_text=Text("Import setup",msrt_norm,b.WHITE,(b.WIN_WIDTH/2,b.WIN_HEIGHT-280))
 
 modes_button=Button((b.WIN_WIDTH/2,300),(800,100),gen_change_menu("modes","main"),"Select gamemode",msrt_norm)
 almanac_button=Button((b.WIN_WIDTH/2,500),(800,100),gen_change_menu("almanac","modes"),"Almanac",msrt_norm)
@@ -322,10 +334,13 @@ m_prev_button=Button((b.WIN_WIDTH/3,b.WIN_HEIGHT-90),(200,70),gen_func("v.a_m_of
 p_next_button=Button((2*b.WIN_WIDTH/3,b.WIN_HEIGHT-90),(200,70),gen_func("v.a_p_offset += 1"),"Next",msrt_norm)
 p_prev_button=Button((b.WIN_WIDTH/3,b.WIN_HEIGHT-90),(200,70),gen_func("v.a_p_offset -= 1"),"Prev",msrt_norm)
 reset_button=Button((b.WIN_WIDTH/2,400),(400,70),v.reset,"Return to menu",msrt_norm)
+settings_button=Button((b.WIN_WIDTH-150,50),(200,50),gen_change_menu("settings","main"),"Settings",msrt_small,colour=b.SHADES[2],hover_colour=b.SHADES[3],mousedown_colour=b.SHADES[1],shadow_colour=b.SHADES[1])
+copy_board_button=Button((b.WIN_WIDTH/2,250),(450,70),copy_board,"Copy board format",msrt_norm)
 
 time_field=Input(b.SHADES[1],(200,70),(2*b.WIN_WIDTH/6,350),msrt_small,"0",int_check)
 inc_field=Input(b.SHADES[1],(200,70),(3*b.WIN_WIDTH/6,350),msrt_small,"0",int_check)
 del_field=Input(b.SHADES[1],(200,70),(4*b.WIN_WIDTH/6,350),msrt_small,"0",int_check)
+import_field=Input(b.SHADES[1],(1300,70),(b.WIN_WIDTH/2,b.WIN_HEIGHT-350),msrt_small,control=paste_check)
 
 temp=Surface((450,300),SRCALPHA,32)
 draw.rect(temp,b.WHITE,Rect(0,0,450,300),border_radius=b.ROUNDNESS)
@@ -381,6 +396,7 @@ while v.running:
     mp:Coord=mouse.get_pos()
     mu:bool=False
     kp:event=None
+    km:int=key.get_mods()
     ms_x:int=0
     ms_y:int=0
     for e in event.get():
@@ -449,6 +465,8 @@ while v.running:
             delay_text.display(v.screen)
             to_game_button.display(v.screen,mp,md,mu)
             timer_text.display(v.screen)
+            import_field.display(v.screen,mp,md,kp,km)
+            import_field_text.display(v.screen)
         back_button.display(v.screen,mp,md,mu)
     
     elif v.menu == "game":
@@ -490,6 +508,15 @@ while v.running:
             else:
                 black_win_text.display(v.screen)
             reset_button.display(v.screen,mp,md,mu)
+    
+    elif v.menu == "settings":
+        back_button.display(v.screen,mp,md,mu)
+        settings_text.display(v.screen)
+        if v.last_menu == "game":
+            copy_board_button.display(v.screen,mp,md,mu)
+
+    if v.menu != "settings":
+        settings_button.display(v.screen,mp,md,mu)
     
     if grid:
         draw_grid(v.screen)

@@ -208,14 +208,17 @@ class Timer():
 
 class Piece(sprite.Sprite):
     '''A piece. Does not display itself, that's the Tile's job.'''
-    def __init__(self, name:str, value:int, colour:Literal[0,1,"all"], sprite:str, check_target:bool=False, initpos:BoardCoord|None=None):
+    def __init__(self, name:str, value:int, colour:Literal[0,1,"all"], sprite:str|Surface, check_target:bool=False, initpos:BoardCoord|None=None):
         '''Attributes common to all pieces'''
         super().__init__()
         self.name=name
         self.value=value
         self.colour=colour
         self.initpos=initpos
-        self.image=transform.scale(image.load(sprite),STD_TILEDIM).convert_alpha()
+        if isinstance(sprite, str):
+            self.image=transform.scale(image.load(sprite),STD_TILEDIM).convert_alpha()
+        else:
+            self.image=transform.scale(sprite,STD_TILEDIM).convert_alpha()
         self.royal=check_target #whether the piece is a target for check-like conditions
         self.parent:Tile|None=None
         self.promotion:OptionsBar|None=None
@@ -243,7 +246,7 @@ class Piece(sprite.Sprite):
         '''Every square the piece can capture on, factoring in the board. If hypo is True, returns every square the piece can capture on hypothetically.'''
         pass
 
-    def move_to(self, final:Tile, game:Game|None=None):
+    def move_to(self, final:Tile, game:Game):
         '''Move to a Tile. Set its parent's piece to None and set the final Tile's piece to this.'''
         self.parent.piece=None
         final.piece=self
@@ -689,6 +692,15 @@ class Movement():
                 if game.board.full_layout[y][x].piece == None and not game.board.get(x,y).locked:
                     yield game.board.full_layout[y][x].boardpos
 
+    @staticmethod
+    def from_list(game:Game, origin:Coord, coords:list[BoardCoord]):
+        if not game.board.get(origin).piece.belongs_to(game.board.turn):
+            return
+        for coord in coords:
+            target=(origin[0]-coord[0],origin[1]-coord[1])
+            if isinstance(game.board.get(target),Tile) and not isinstance(game.board.get(target).piece,Piece):
+                yield target
+
 class Capture():
     @staticmethod
     def line(dir:int, step:int, max:int, limit:int, coord:BoardCoord, game:Game, col:int, hypo:bool=False) -> Generator:
@@ -773,6 +785,16 @@ class Capture():
             for x in range(width):
                 if game.board.full_layout[y][x].piece != None and not game.board.full_layout[y][x].piece.belongs_to(col) and not game.board.get(x,y).locked:
                     yield game.board.full_layout[y][x].boardpos
+
+    @staticmethod
+    def from_list(game:Game, origin:Coord, coords:list[BoardCoord], col:int, hypo:bool=False):
+        if not game.board.get(origin).piece.belongs_to(game.board.turn):
+            return
+        for coord in coords:
+            target=(origin[0]-coord[0],origin[1]-coord[1])
+            tile=game.board.get(target)
+            if isinstance(tile,Tile) and ((isinstance(tile.piece,Piece) and not tile.piece.belongs_to(col)) or (hypo and (not isinstance(tile.piece,Piece) or (isinstance(tile.piece,Piece) and not tile.piece.belongs_to(col))))):
+                yield target
 
 BRICK_WALL=Piece("Brick Wall",-1,-1,join(PCS_IMG_DIR,"pawn_w.png"))
 class Rules():
@@ -1004,7 +1026,7 @@ def wrap_text(text:str, max:int, font:font.Font) -> list[str]:
     return [line[1:] for line in lines]
 
 class Info():
-    def __init__(self, name:str, abstract:str, info:str, img:str, img_bg:str|Surface, covers:Literal["mode","piece"], links:list[Info]=None, internal_name:str=None):
+    def __init__(self, name:str, abstract:str, info:str, img:str|Surface, img_bg:str|Surface, covers:Literal["mode","piece"], links:list[Info]=None, internal_name:str=None):
         self.name=name
         self.internal_name=internal_name
         self.abstract=abstract
@@ -1014,7 +1036,9 @@ class Info():
             self.image:Surface=transform.scale(image.load(img_bg),INFO_IMG_DIM).convert_alpha()
         else:
             self.image:Surface=transform.scale(img_bg,INFO_IMG_DIM).convert_alpha()
-        self.image.blit(transform.scale(image.load(img),INFO_IMG_DIM).convert_alpha(),(0,0))
+        if isinstance(img,str):
+            img=image.load(img)
+        self.image.blit(transform.scale(img,INFO_IMG_DIM).convert_alpha(),(0,0))
         self.links=links
         self.link_names:list[str]=[]
         self.link_rects:list[Rect]=[]
@@ -1091,7 +1115,7 @@ class Info():
         if self.display_base.get_height() > WIN_HEIGHT-100:
             self.scrollable=True
 
-    def display(self, surface:Surface, ms:int, mp:Coord, md:bool) -> str|None:
+    def display(self, surface:Surface, ms:int, mp:Coord, mu:bool) -> str|None:
         if ms != 0 and self.scrollable:
             self.scroll_offset = min(max(0, self.scroll_offset-25*ms), self.display_base.get_height()-50)
         surface.blit(self.display_base, (INFO_BORDERS[0],-self.scroll_offset))
@@ -1100,7 +1124,7 @@ class Info():
             temp.top=hitbox.top-self.scroll_offset
             if hitbox.collidepoint((mp[0],mp[1]+self.scroll_offset)):
                 draw.rect(surface,SELECT_COLOUR,temp,5)
-                if md:
+                if mu:
                     return self.link_names[self.link_rects.index(hitbox)]
 
 print('Module "basic" (game foundations) loaded.')

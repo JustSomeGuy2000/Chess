@@ -23,5 +23,3 @@ after_move=s.after_move
 interpret=Rules.interpret
 local_play=True
 online_play=False
-
-print('Module "atomic" (atomic chess) loaded.')

@@ -1,8 +1,5 @@
 '''Gamemode: occidental standard chess'''
-try:
-    from basic import *
-except:
-    from modes.basic import *
+from modes.basic import *
 from pygame import *
 from math import inf
 from functools import partial
@@ -106,11 +103,11 @@ class BlackPawn(Piece):
             move_spaces=2
         else:
             move_spaces=1
-        return m.line(1,1,0,move_spaces,self.parent.boardpos,game)
+        return m.line(1,1,7,move_spaces,self.parent.boardpos,game)
 
     def capture_squares(self, game:Game, hypo:bool=False) -> list[BoardCoord]:
         '''Every square the piece can capture on, factoring in the board. If hypo is True, returns every square the piece can capture on hypothetically.'''
-        temp=itertools.chain(c.diagonal(-1,1,0,0,1,self.parent.boardpos,game,self.colour,hypo),c.diagonal(1,1,7,0,1,self.parent.boardpos,game,self.colour,hypo))
+        temp=itertools.chain(c.diagonal(-1,1,0,7,1,self.parent.boardpos,game,self.colour,hypo),c.diagonal(1,1,7,7,1,self.parent.boardpos,game,self.colour,hypo))
         if 0 < self.parent.boardpos[0] < 7:
             left=True
             right=True

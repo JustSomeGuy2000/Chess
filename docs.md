@@ -18,7 +18,6 @@ Fairy chess
 Different board shapes and sizes
 Random capture chess
 Shogi
-Checkers
 Fog of war
 Undercover queen?
 Three-check
@@ -29,7 +28,6 @@ Pre-chess
 Omega chess
 Transcendental chess
 Dunsany's chess
-Peasant's revolt
 Really bad chess
 Baroque chess
 Berolina chess
@@ -38,7 +36,6 @@ Chess different armies
 Kung-fu chess
 Pocket mutation chess
 Super-X chess
-Way of the knight
 Etchessera
 Cannibal chess
 Andernach chess
@@ -95,7 +92,7 @@ Menus:
 ## Mandatory
 ### hidden:
 **bool**
-- Whether this file should be displayed in the mode choosing screen
+- Whether this file should be displayed in the mode choosing screen (doesn't work)
 
 ### board:
 **Board**

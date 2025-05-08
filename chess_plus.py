@@ -384,21 +384,22 @@ for module in m.__all__:
         continue
     try:
         v.mode_infos[module]=temp.info
-        v.mode_info_buttons.append(Button((b.WIN_WIDTH/2,200+module_count%5 *130),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_change_additional(module),temp.info.name,msrt_norm))
-        v.mode_choose_buttons.append(Button((b.WIN_WIDTH/2,200+module_count%5 *130),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_compound_func(gen_change_submenu("players"),gen_set_gamemode(temp)),temp.info.name,msrt_norm))
+        v.mode_info_buttons.append(Button((b.WIN_WIDTH/2,200+module_count%5 *120),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_change_additional(module),temp.info.name,msrt_norm))
+        v.mode_choose_buttons.append(Button((b.WIN_WIDTH/2,200+module_count%5 *120),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_compound_func(gen_change_submenu("players"),gen_set_gamemode(temp)),temp.info.name,msrt_norm))
     except AttributeError:
-        v.mode_info_buttons.append(Button((b.WIN_WIDTH/2,200+module_count%5 *130),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_change_additional(None),"Incorrect Format",msrt_norm))
+        v.mode_info_buttons.append(Button((b.WIN_WIDTH/2,200+module_count%5 *120),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_change_additional(None),"Incorrect Format",msrt_norm))
     module_count += 1
-    try:
-        temp_i:b.Info=getattr(temp,"piece_infos")
-        for piece in temp_i:
-            if piece.name not in v.piece_infos:
-                v.piece_infos[piece.name]=piece
-                v.piece_info_buttons.append(Button((b.WIN_WIDTH/2,200+piece_count%5 *120),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_change_additional(piece.name),piece.name,msrt_norm))
-                piece_count += 1
-    except AttributeError:
-        v.piece_info_buttons.append(Button((b.WIN_WIDTH/2,200+piece_count%5 *100),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_change_additional(None),"Incorrect Format",msrt_norm))
-        piece_count += 1
+    if hasattr(temp,"piece_infos"):
+        try:
+            temp_i:b.Info=getattr(temp,"piece_infos")
+            for piece in temp_i:
+                if piece.name not in v.piece_infos:
+                    v.piece_infos[piece.name]=piece
+                    v.piece_info_buttons.append(Button((b.WIN_WIDTH/2,200+piece_count%5 *120),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_change_additional(piece.name),piece.name,msrt_norm))
+                    piece_count += 1
+        except AttributeError:
+            v.piece_info_buttons.append(Button((b.WIN_WIDTH/2,200+piece_count%5 *120),(b.INFO_BORDERS[1]-b.INFO_BORDERS[0],100),gen_change_additional(None),"Incorrect Format",msrt_norm))
+            piece_count += 1
 
 md:bool=False
 grid:bool=False
@@ -448,12 +449,12 @@ while v.running:
                 p_prev_button.display(v.screen,mp,md,mu,unusable=v.a_p_offset == 0)
         else:
             if v.submenu == "modes":
-                hyperlink=v.mode_infos[v.additional].display(v.screen,ms_y,mp,md)
+                hyperlink=v.mode_infos[v.additional].display(v.screen,ms_y,mp,mu)
                 if isinstance(hyperlink, str):
                     v.submenu="pieces"
                     v.additional=hyperlink
             elif v.submenu == "pieces":
-                hyperlink=v.piece_infos[v.additional].display(v.screen,ms_y,mp,md)
+                hyperlink=v.piece_infos[v.additional].display(v.screen,ms_y,mp,mu)
                 if isinstance(hyperlink, str):
                     v.submenu="modes"
                     v.additional=hyperlink

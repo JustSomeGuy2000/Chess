@@ -1,17 +1,18 @@
 # To-do:
+- Implement online play
+- NEXT: internal game log and undoing (no undoes when online of course)
 - Colour schemes
 - Pins are not per piece, but rather included in Rules.lock()?
 - Finish adding animations
 - Implement decorator that handles all the move validation, so actual movement functions only have to focus on generation
-- Implement draws (5-fold repetition or insufficient material)
-- Implement a function to manually set the current player, targetable squares, and target (makes cheese-like functions easier)
-- Extra move options (for variants like beirut chess, where there is an option to detonate)
 - Manual piece-placing option? (for certain variants)
 - Manual army choosing? (for some variants)
 - Remove debug stuff (grid, mouse position, tiles showing if they are locked)
 
+Note: when capturing a piece does not make the capturing piece actually go there, show the capture sqaure on the piece that can be captured.
+
 # Modes to add:
-Fischer random
+Maharajah and the Sepoys
 Conway chess (every move, pieces are generated based on Conway's Game of Life rules according to the average of the pieces that created it, adding for your colour and subtracting gor the other. These pieces are considere virtual and disappear when the virtual pieces are recalculated.)
 Chinese chess
 Fairy chess
@@ -39,9 +40,7 @@ Super-X chess
 Etchessera
 Cannibal chess
 Andernach chess
-Circe chess
 Benedict chess
-Chad
 Overpopulation chess
 Checkers chess
 Prohibition chess
@@ -120,7 +119,7 @@ Menus:
 - Called after every selection to determine locked squares and if anyone won
 
 ### interpret(): 
-**Callable[[Game,str], None]**
+**(Game, str) -> None**
 - Called in multiplayer to translate incoming signals into moves
 
 ### after_move():
@@ -128,8 +127,8 @@ Menus:
 - Called after every move
 
 ### after_capture():
-**(Game, Tile) -> None**
-- Called after every capture
+**(Game, Tile, Piece) -> None**
+- Called after every capture. Takes in the game, the tile that was moved to, and the piece that was captured
 
 ### capture_filter():
 **(Iterator[BoardCoord], Game) -> None**

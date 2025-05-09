@@ -88,7 +88,7 @@ class Gamemode():
         self.local_play:bool
         self.online_play:bool
         self.after_move:Callable[[b.Board,int],None]
-        self.after_capture:Callable[[Game,b.Tile],None]|None
+        self.after_capture:Callable[[Game,b.Tile,b.Piece],None]|None
         raise RuntimeError("This is a utility placeholder class that is not supposed to be instantiated. This is why you shouldn't try.")
 
 class Animation():
@@ -493,13 +493,14 @@ while v.running:
                 capture=False
                 if isinstance(v.selected.piece, b.Piece):
                     capture=True
+                    captured_piece=v.selected.piece
                 if capture and (not hasattr(v.selected.piece, "pointless") or not v.selected.piece.pointless):
                     v.board.pointless=0
                 else:
                     v.board.pointless += 1
                 v.prev_selected.piece.move_to(v.selected,v)
                 if hasattr(v.mode,"after_capture") and capture:
-                    v.mode.after_capture(v,v.selected)
+                    v.mode.after_capture(v,v.selected,captured_piece)
                 v.selected.selected=False
                 v.prev_selected=None
                 v.selected=None

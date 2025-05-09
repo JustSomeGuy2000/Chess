@@ -313,7 +313,7 @@ king_info=Info("King","Useless aside from decorative value, similar to many actu
 
 lore='''    The form of chess known by billions and played by millions worldwide. Its ancient significance has been lost to time. In the abscence of the continous vitalisation and esteem it once enjoyed, the once great Seed of ASBG has been reduced to a mere shadow of its former power. Many stars have stopped watching, many nebulae gone blind, but not all of them. Sometimes, those that remain still cast their gaze on our little blue planet to watch the games we humans play without realising their meaning, and cause the strange effects the ancients so often enjoyed to occur once more for just a moment. [RETURN] [RETURN]    Throughout it all, they who have been silently watching continued their vigil. Watching the daily lives, the joys and the sorrows, the triumphs and failures, of the puny creatures called humans. And the humans no longer need them. And they are pleased.'''
 
-info=Info("Chess","The most commonly played variant of chess.",lore,join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,"mode",[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info],internal_name="standard")
+info=Info("Chess","The most commonly played variant of chess.","WIP",join(PCS_IMG_DIR,"pawn_w.png"),GREEN_TILE,"mode",[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info],internal_name="standard")
 info.construct()
 
 piece_infos:list[Info]=[pawn_info,bishop_info,knight_info,rook_info,queen_info,king_info]

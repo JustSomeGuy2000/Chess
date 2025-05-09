@@ -208,17 +208,18 @@ class Timer():
 
 class Piece(sprite.Sprite):
     '''A piece. Does not display itself, that's the Tile's job.'''
-    def __init__(self, name:str, value:int, colour:Literal[0,1,"all"], sprite:str|Surface, check_target:bool=False, initpos:BoardCoord|None=None):
+    def __init__(self, name:str, value:int, colour:Literal[0,1,"all"], sprite:str|Surface, check_target:bool=False, initpos:BoardCoord|None=None, img_size:Coord=STD_TILEDIM):
         '''Attributes common to all pieces'''
         super().__init__()
         self.name=name
         self.value=value
         self.colour=colour
         self.initpos=initpos
+        self.img_size=img_size
         if isinstance(sprite, str):
-            self.image=transform.scale(image.load(sprite),STD_TILEDIM).convert_alpha()
+            self.image=transform.scale(image.load(sprite),img_size).convert_alpha()
         else:
-            self.image=transform.scale(sprite,STD_TILEDIM).convert_alpha()
+            self.image=transform.scale(sprite,img_size).convert_alpha()
         self.royal=check_target #whether the piece is a target for check-like conditions
         self.parent:Tile|None=None
         self.promotion:OptionsBar|None=None
@@ -249,6 +250,10 @@ class Piece(sprite.Sprite):
     def move_to(self, final:Tile, game:Game):
         '''Move to a Tile. Set its parent's piece to None and set the final Tile's piece to this.'''
         self.parent.piece=None
+        for pair in game.board.teleport:
+            if final.boardpos == pair[0]:
+                final.set_piece(None)
+                final=game.board.get(pair[1])
         final.piece=self
         self.parent=final
 
@@ -311,16 +316,28 @@ class Tile():
             self.parent.active_options=options
         else:
             raise TypeError("And what exactly are you propagating to?")
+        
+    def set_piece(self, piece:Piece|None):
+        '''Call a piece from the vasty deep.'''
+        if isinstance(self.piece,Piece):
+            self.piece.parent=None
+        if isinstance(piece,Piece):
+            piece.parent=self
+        self.piece=piece
 
 class Board():
     '''Everything to do with the construction and management of boards.'''
-    def __init__(self, height:int, width:int, layout:list[str]=None, tile_dim:int=STD_TILEDIM, initpos:list[str]=None, piecesdict:dict[str,type]=None):
+    def __init__(self, height:int, width:int, layout:list[str]=None, tile_dim:int=STD_TILEDIM, initpos:list[str]=None, piecesdict:dict[str,type]=None, custom_black_squares:list[BoardCoord]|None=None, grid:bool=False, grid_colour:Colour=(0,0,0), grid_width:int=2):
         self.height=height #difference between highest and lowest point
         self.width=width #difference between rightmost and leftmost point
         self.layout:list[list[str]]=layout #specific tile layout. If None, a square is assumed. Numbers for full spaces, letters for empty ones.
         self.initpos=initpos #a similar format to layout, with numbers indicating piceless squares and letters according to piecesdict indicating pieces
         self.piecesdict=piecesdict#dictionary containing the pieces that go on the board, and the letters that represent them.
         self.tile_dim=tile_dim
+        self.custom_black=custom_black_squares
+        self.draw_grid=grid
+        self.grid_colour=grid_colour
+        self.grid_width=grid_width
         self.full_layout:BoardLayout=None #full layout, the one that is used for everything
         self.image:Surface|None=None #what the board looks like
         self.active_options:OptionsBar|None=None #the active set of options, represented by an OptionsBar
@@ -332,6 +349,13 @@ class Board():
         self.arrows:list[Arrow]|list[None]=[]
         self.timers:list[Timer]=[]
         self.pointless:int=0
+        self.teleport:list[tuple[BoardCoord,BoardCoord]]=[] #from where to where
+
+    def checker(self,num:int,coord):
+        return 0 if num%2 == 0 else 1
+    
+    def custom(self,num,coord:BoardCoord):
+        return 1 if coord in self.custom_black else 0
 
     def construct(self, anchor:Coord, amt:int|float, inc:int, delay:int, timerfont:font.Font, you:int=0):
         '''Creates a list of lists representing the full board without intial pieces placed. Spaces with tiles are called "empty". For non-quadrilateral boards, non-tile spaces are called "void".'''
@@ -339,6 +363,9 @@ class Board():
         self.anchor=anchor
         result=[]
         count=0
+        tiler=self.checker
+        if self.custom_black != None:
+            tiler=self.custom
         if self.layout == None:
             for y in range(self.height):
                 temp=[]
@@ -353,7 +380,7 @@ class Board():
                     code=self.layout[i][j]
                     if code in numbers:
                         for k in range(int(code)):
-                            temp.append(Tile((x_count,i),"empty",Rect(anchor[0]+(x_count*self.tile_dim[0]),anchor[1]+(i*self.tile_dim[1]),self.tile_dim[0],self.tile_dim[1]),self,1 if count%2 == 0 else 0,))
+                            temp.append(Tile((x_count,i),"empty",Rect(anchor[0]+(x_count*self.tile_dim[0]),anchor[1]+(i*self.tile_dim[1]),self.tile_dim[0],self.tile_dim[1]),self,tiler(count,(x_count,i))))
                             x_count += 1
                             count += 1
                     elif code in letters:
@@ -406,6 +433,10 @@ class Board():
     
     def construct_img(self, light:Surface, dark:Surface, void:Surface, whole:Surface|None=None):
         tile_dim=self.tile_dim[0]
+        for row in self.full_layout:
+            for tile in row:
+                if isinstance(tile.piece,Piece) and tile.piece.img_size != self.tile_dim:
+                    tile.piece.image=transform.scale(tile.piece.image,self.tile_dim)
         if whole == None:
             layout=self.full_layout
             height=len(layout)
@@ -421,6 +452,13 @@ class Board():
                             base.blit(light,(tile_dim*x,tile_dim*y))
                         elif target.colour == 1:
                             base.blit(dark,(tile_dim*x,tile_dim*y))
+            if self.draw_grid:
+                edge=self.tile_dim[0]*self.width
+                for i in range(self.height):
+                    draw.line(base,self.grid_colour,(0,self.tile_dim[1]*i),(edge,self.tile_dim[1]*i),self.grid_width)
+                edge=self.tile_dim[1]*self.height
+                for i in range(self.width):
+                    draw.line(base,self.grid_colour,(self.tile_dim[0]*i,0),(self.tile_dim[0]*i,edge),self.grid_width)
             self.image=base.convert_alpha()
         else:
             self.image=whole.convert_alpha()
@@ -461,6 +499,7 @@ class Board():
         if isinstance(self.active_options, OptionsBar) and self.active_options.optional:
             self.active_options=None
         self.arrows=[]
+        self.teleport=[]
 
     def progress_turn(self):
         self.turn_number += 1
@@ -693,12 +732,13 @@ class Movement():
                     yield game.board.full_layout[y][x].boardpos
 
     @staticmethod
-    def from_list(game:Game, origin:Coord, coords:list[BoardCoord]):
+    def from_list(game:Game, origin:Coord, coords:list[BoardCoord], limits:tuple[int,int,int,int]=(0,7,0,7)):
+        '''Limits go forward, backward, left, right'''
         if not game.board.get(origin).piece.belongs_to(game.board.turn):
             return
         for coord in coords:
             target=(origin[0]-coord[0],origin[1]-coord[1])
-            if isinstance(game.board.get(target),Tile) and not isinstance(game.board.get(target).piece,Piece):
+            if limits[0] <= target[1] <= limits[1] and limits[2] <= target[0] <= limits[3] and isinstance(game.board.get(target),Tile) and not isinstance(game.board.get(target).piece,Piece):
                 yield target
 
 class Capture():
@@ -787,13 +827,13 @@ class Capture():
                     yield game.board.full_layout[y][x].boardpos
 
     @staticmethod
-    def from_list(game:Game, origin:Coord, coords:list[BoardCoord], col:int, hypo:bool=False):
+    def from_list(game:Game, origin:Coord, coords:list[BoardCoord], col:int, hypo:bool=False, limits:tuple[int,int,int,int]=(0,7,0,7)):
         if not game.board.get(origin).piece.belongs_to(game.board.turn):
             return
         for coord in coords:
             target=(origin[0]-coord[0],origin[1]-coord[1])
             tile=game.board.get(target)
-            if isinstance(tile,Tile) and ((isinstance(tile.piece,Piece) and not tile.piece.belongs_to(col)) or (hypo and (not isinstance(tile.piece,Piece) or (isinstance(tile.piece,Piece) and not tile.piece.belongs_to(col))))):
+            if limits[0] <= target[1] <= limits[1] and limits[2] <= target[0] <= limits[3] and  isinstance(tile,Tile) and ((isinstance(tile.piece,Piece) and not tile.piece.belongs_to(col)) or (hypo and (not isinstance(tile.piece,Piece) or (isinstance(tile.piece,Piece) and not tile.piece.belongs_to(col))))):
                 yield target
 
 BRICK_WALL=Piece("Brick Wall",-1,-1,join(PCS_IMG_DIR,"pawn_w.png"))

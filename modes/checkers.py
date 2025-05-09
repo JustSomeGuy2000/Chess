@@ -17,11 +17,14 @@ def after_move(game:b.Game):
         game.selected=game.board.select_again
 
 def win(game:b.Game):
+    if not game.board.end_turn:
+        return [], False, -1
     real_turn=game.board.turn
     all_light=game.board.get_matching(lambda t: True if isinstance(t.piece,b.Piece) and t.piece.colour == 0 else False)
     all_dark=game.board.get_matching(lambda t: True if isinstance(t.piece,b.Piece) and t.piece.colour == 1 else False)
     all_light_moves=[]
     all_dark_moves=[]
+    game.board.cs_storage=[]
     game.board.turn=0
     for tile in all_light:
         all_light_moves.extend(tile.piece.moves(game))
@@ -31,6 +34,8 @@ def win(game:b.Game):
         all_dark_moves.extend(tile.piece.moves(game))
         all_dark_moves.extend(tile.piece.capture_squares(game))
     game.board.turn=real_turn
+    for tile in game.board.get_matching(lambda t: True if isinstance(t.piece,b.Piece) and t.piece.belongs_to(game.board.turn) else False):
+        game.board.cs_storage.extend(tile.piece.capture_squares(game))
     if all_light == [] or all_light_moves == []:
         return [], True, 0
     elif all_dark == [] or all_dark_moves == []:
@@ -46,7 +51,7 @@ class LightMan(b.Piece):
             self.y_step=-1
 
     def moves(self, game):
-        if not self.belongs_to(game.board.turn) or (isinstance(game.board.select_again, b.Tile) and self != game.board.select_again):
+        if not self.belongs_to(game.board.turn) or (isinstance(game.board.select_again, b.Tile) and self != game.board.select_again) or (game.board.cs_storage != [] and self.belongs_to(game.board.turn)):
             return []
         if self.colour == 0:
             return chain(b.Movement.diagonal(-1,self.y_step,0,0,1,self.parent.boardpos,game),b.Movement.diagonal(1,self.y_step,7,0,1,self.parent.boardpos,game))
@@ -54,7 +59,7 @@ class LightMan(b.Piece):
             return chain(b.Movement.diagonal(-1,self.y_step,0,7,1,self.parent.boardpos,game),b.Movement.diagonal(1,self.y_step,7,7,1,self.parent.boardpos,game))
     
     def capture_squares(self, game, hypo = False):
-        if not self.belongs_to(game.board.turn) or (isinstance(game.board.select_again, b.Tile) and self != game.board.select_again):
+        if not self.belongs_to(game.board.turn) or (isinstance(game.board.select_again, b.Tile) and self.parent != game.board.select_again):
             return []
         self.prev_square=self.parent.boardpos
         for x_step in [1,-1]:
@@ -84,8 +89,8 @@ class LightMan(b.Piece):
             self.parent.piece=temp
             temp.parent=final
             self.parent=None
+        self.cs_storage=[]
 
-    
 class DarkMan(b.Piece):
     def __init__(self):
         super().__init__("Man",1,1,b.join(b.PCS_IMG_DIR,"pawn_b.png"))
@@ -101,7 +106,7 @@ class LightKing(b.Piece):
         super().__init__("King",s.inf,0,b.join(b.PCS_IMG_DIR,"king_w.png"))
 
     def moves(self, game):
-        if not self.belongs_to(game.board.turn) or (isinstance(game.board.select_again, b.Tile) and self != game.board.select_again):
+        if not self.belongs_to(game.board.turn) or (isinstance(game.board.select_again, b.Tile) and self != game.board.select_again) or game.board.cs_storage != []:
             return []
         return b.Movement.diagonals((0,7,0,7),(1,1,1,1),self.parent.boardpos,game)
     
@@ -144,6 +149,7 @@ board.turn=1
 board.end_turn=True
 board.select_again=None
 board.turn_number=1
+board.cs_storage=[]
 
 king_info=b.Info("King (Checkers)","Way more useful than a king in chess","WIP",b.join(b.PCS_IMG_DIR,"king_w.png"),b.CREAM_TILE,"piece")
 man_info=b.Info("Man","Imagine all your pieces being this weakling.","WIP",b.join(b.PCS_IMG_DIR,"pawn_w.png"),b.CREAM_TILE,"piece")

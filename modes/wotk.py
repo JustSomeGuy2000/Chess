@@ -16,7 +16,7 @@ def improve_choice(tile:b.Tile, options:b.OptionsBar):
 def no_win(game):
     return [],False,0
 
-sprites:dict[int,dict[int|None,str]]={1:{None:'pawn'},2:{"b":'ad',"k":'wfd'},3:{"b":'bishop',"k":'knight'},4:{"b":'db',"k":'nw'},5:{None:'rook'},6:{"b":'fld',"k":'nightrider'},7:{None:'BN'},8:{"b":'queen',"k":'C'},9:{None:'NrB'},10:{None:'NrR'},11:{None:'king'}}
+sprites:dict[int,dict[int|None,str]]={1:{None:'pawn'},2:{"b":'ad',"k":'wfd'},3:{"b":'bishop',"k":'knight'},4:{"b":'db',"k":'nw'},5:{None:'rook'},6:{"b":'fld',"k":'nightrider'},7:{None:'bn'},8:{"b":'queen',"k":'C'},9:{None:'NrB'},10:{None:'NrR'},11:{None:'king'}}
 
 class WhiteAdventurer(b.Piece):
     def __init__(self):

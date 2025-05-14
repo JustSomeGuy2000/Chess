@@ -49,6 +49,8 @@ class Game():
         self.prev_selected:Tile|None=None
         self.board:b.Board|None=None
         self.win:list[bool|int]=[False, -1]
+        self.log:list[list[list[Piece|None]]]=[]
+        self.log_pointer=0
 
     def begin(self):
         self.board=copy.copy(self.mode.board)
@@ -57,6 +59,7 @@ class Game():
         self.board.construct_img(b.CREAM_TILE,b.GREEN_TILE,None)
         if hasattr(self.mode,"game_start"):
             self.mode.game_start(self)
+        self.log.append(self.board.get_layout())
 
     def reset(self):
         self.menu="main"
@@ -310,6 +313,19 @@ def gen_func(instr:str):
         exec(instr)
     return res_func
 
+def crement_log(value:int):
+    def res_crement_log(value=value):
+        if v.log_pointer+value < 0:
+            return
+        try:
+            temp=v.log[v.log_pointer+value]
+        except:
+            return
+        else:
+            v.log_pointer += value
+            v.board.restore(v.log[v.log_pointer])
+    return res_crement_log
+
 font.init()
 msrt_title=font.Font(join(b.FNT_IMG_DIR,"bold++.ttf"),100)
 msrt_norm=font.Font(join(b.FNT_IMG_DIR,"bold+.ttf"),40)
@@ -347,6 +363,8 @@ settings_button=Button((b.WIN_WIDTH-150,50),(200,50),gen_change_menu("settings",
 copy_board_button=Button((b.WIN_WIDTH/2,250),(500,70),copy_board,"Copy board format",msrt_norm)
 quit_button=Button((b.WIN_WIDTH/2,350),(250,70),v.reset,"Quit",msrt_norm,colour=b.REDS[0],hover_colour=b.REDS[2],mousedown_colour=b.REDS[0],shadow_colour=b.REDS[1])
 concede_button=Button((b.WIN_WIDTH/2,350),(350,70),concede,"Concede",msrt_norm,colour=b.REDS[0],hover_colour=b.REDS[2],mousedown_colour=b.REDS[0],shadow_colour=b.REDS[1])
+undo_button=Button((b.WIN_WIDTH-150,250),(170,50),crement_log(-1),"Undo",msrt_small)
+redo_button=Button((b.WIN_WIDTH-150,350),(170,50),crement_log(1),"Redo",msrt_small)
 
 time_field=Input(b.SHADES[1],(200,70),(2*b.WIN_WIDTH/6,350),msrt_small,"0",int_check)
 inc_field=Input(b.SHADES[1],(200,70),(3*b.WIN_WIDTH/6,350),msrt_small,"0",int_check)
@@ -483,6 +501,8 @@ while v.running:
     
     elif v.menu == "game":
         v.prev_selected=v.selected
+        undo_button.display(v.screen,mp,md,mu,unusable=v.log_pointer == 0)
+        redo_button.display(v.screen,mp,md,mu,unusable=v.log_pointer == len(v.log)-1)
         temp=v.board.display(v.screen,mp,mu)
         if mu and not v.win[0]:
             if temp != None: #select a tile
@@ -490,6 +510,7 @@ while v.running:
             if temp == False or temp == None: #deselect a tile
                 v.selected=None
             if v.selected != None and (v.selected.move_target or v.selected.capture_target): #move a piece
+                prev_turn=v.board.turn
                 capture=False
                 if isinstance(v.selected.piece, b.Piece):
                     capture=True
@@ -508,6 +529,11 @@ while v.running:
                     v.mode.after_move(v)
                 else:
                     standard.after_move(v)
+                if v.board.turn != prev_turn:
+                    if v.log_pointer != len(v.log)-1:
+                        v.log=v.log[:v.log_pointer+1]
+                    v.log.append(v.board.get_layout())
+                    v.log_pointer += 1
             v.board.scrub()
             if hasattr(v.mode,"win"):
                 locked, v.win[0], v.win[1]=v.mode.win(v)

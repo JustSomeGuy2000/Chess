@@ -66,7 +66,8 @@ class LightMan(b.Piece):
             cap_target=game.board.get(self.parent.boardpos[0]+x_step,self.parent.boardpos[1]+self.y_step)
             mov_target=game.board.get(self.parent.boardpos[0]+(2*x_step),self.parent.boardpos[1]+(2*self.y_step))
             if isinstance(cap_target,b.Tile) and isinstance(mov_target,b.Tile) and isinstance(cap_target.piece,b.Piece) and not isinstance(mov_target.piece,b.Piece) and not cap_target.piece.belongs_to(self.colour):
-                yield mov_target.boardpos
+                game.board.teleport.append((cap_target.boardpos,mov_target.boardpos))
+                yield cap_target.boardpos
     
     def move_to(self, final, game):
         b.Piece.move_to(self, final, game)
@@ -119,7 +120,8 @@ class LightKing(b.Piece):
                 cap_target=game.board.get(self.parent.boardpos[0]+x_step,self.parent.boardpos[1]+y_step)
                 mov_target=game.board.get(self.parent.boardpos[0]+(2*x_step),self.parent.boardpos[1]+(2*y_step))
                 if isinstance(cap_target,b.Tile) and isinstance(mov_target,b.Tile) and isinstance(cap_target.piece,b.Piece) and not isinstance(mov_target.piece,b.Piece) and not cap_target.piece.belongs_to(self.colour):
-                    yield mov_target.boardpos
+                    game.board.teleport.append((cap_target.boardpos,mov_target.boardpos))
+                    yield cap_target.boardpos
     
     def move_to(self, final, game):
         b.Piece.move_to(self, final, game)

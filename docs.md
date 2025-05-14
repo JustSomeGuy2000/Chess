@@ -1,6 +1,6 @@
 # To-do:
+- NEXT: Filter for moves so the piece cannot move to or capture defended squares
 - Implement online play
-- NEXT: internal game log and undoing (no undoes when online of course)
 - Colour schemes
 - Pins are not per piece, but rather included in Rules.lock()?
 - Finish adding animations
@@ -12,7 +12,6 @@
 Note: when capturing a piece does not make the capturing piece actually go there, show the capture sqaure on the piece that can be captured.
 
 # Modes to add:
-Maharajah and the Sepoys
 Conway chess (every move, pieces are generated based on Conway's Game of Life rules according to the average of the pieces that created it, adding for your colour and subtracting gor the other. These pieces are considere virtual and disappear when the virtual pieces are recalculated.)
 Chinese chess
 Fairy chess

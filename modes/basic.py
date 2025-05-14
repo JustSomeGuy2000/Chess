@@ -31,7 +31,7 @@ screen=display.set_mode((WIN_WIDTH,WIN_HEIGHT))
 STD_TILEDIM=(100,100)
 PCS_IMG_DIR=join("assets","sprites","pieces")
 TIL_IMG_DIR=join("assets","sprites","tiles")
-OTR_TIL_DIR=join("assets","sprites","other")
+OTR_IMG_DIR=join("assets","sprites","other")
 FNT_IMG_DIR=join("assets","montserrat")
 POCKET_ANCHORS=([100,1000],[100,100])
 
@@ -224,6 +224,7 @@ class Piece(sprite.Sprite):
         self.parent:Tile|None=None
         self.promotion:OptionsBar|None=None
         self.promote_pos:list[BoardCoord]|None=None
+        self.__basevars__=["name","value","colour","initpos","img_size","image","royal","parent","promotion","promote_pos"]
 
     def __repr__(self):
         return f"<{self.colour} coloured {self.name} at {self.parent.boardpos}>"
@@ -261,6 +262,14 @@ class Piece(sprite.Sprite):
         if self.colour == colour or self.colour == "all":
             return True
         return False
+    
+    def __copy__(self) -> Piece:
+        base=type(self)()
+        base.image=self.image
+        for var in list(self.__dict__.keys()):
+            if var not in self.__basevars__:
+                setattr(base,var,copy.copy(getattr(self,var)))
+        return base
 
 class Tile():
     '''A container for tile information. Is True if there it contains a piece, is False otherwise'''
@@ -333,6 +342,7 @@ class Board():
         self.layout:list[list[str]]=layout #specific tile layout. If None, a square is assumed. Numbers for full spaces, letters for empty ones.
         self.initpos=initpos #a similar format to layout, with numbers indicating piceless squares and letters according to piecesdict indicating pieces
         self.piecesdict=piecesdict#dictionary containing the pieces that go on the board, and the letters that represent them.
+        self.reversed={v: k for k, v in self.piecesdict.items()}
         self.tile_dim=tile_dim
         self.custom_black=custom_black_squares
         self.draw_grid=grid
@@ -350,6 +360,7 @@ class Board():
         self.timers:list[Timer]=[]
         self.pointless:int=0
         self.teleport:list[tuple[BoardCoord,BoardCoord]]=[] #from where to where
+        self.__basevars__=copy.copy(self.__dict__)
 
     def checker(self,num:int,coord):
         return 0 if num%2 == 0 else 1
@@ -629,6 +640,33 @@ class Board():
             self.get(letters.index(arg[2][0])-1,int(arg[2][1])-1).en_passantable=True
         self.turn_number=int(arg[4])
 
+    def get_layout(self) -> dict[BoardCoord|str,Piece]:
+        result={}
+        for row in self.full_layout:
+            for tile in row:
+                if isinstance(tile.piece,Piece):
+                    result[tile.boardpos]=copy.copy(tile.piece)
+        result["turn"]=copy.copy(self.turn)
+        result["turn_number"]=copy.copy(self.turn_number)
+        for var in self.__dict__:
+            if var not in self.__basevars__:
+                result[var]=getattr(self,var)
+        return result
+    
+    def restore(self, layout:dict[BoardCoord|str,Piece]):
+        for y, row in enumerate(self.full_layout):
+            for x in range(len(row)):
+                if (x,y) in layout:
+                    piece=layout[(x,y)]
+                    tile=self.get(x,y)
+                    tile.piece=piece
+                    piece.parent=tile
+                else:
+                    self.get(x,y).piece=None
+        for key in layout:
+            if isinstance(key,str):
+                setattr(self,key,layout[key])
+
 class Movement():
     @staticmethod
     def out_of_bounds(board:list[list[str]], coord:Coord) -> bool:
@@ -840,10 +878,10 @@ BRICK_WALL=Piece("Brick Wall",-1,-1,join(PCS_IMG_DIR,"pawn_w.png"))
 class Rules():
     '''Gamerules that can be altered or used unchanged depending on the gamemode's requirements. Includes win conditions and check-like conditions (more generally, functions that return the list of board positions to lock)'''
     @staticmethod
-    def win(game:Game) -> tuple[list[BoardCoord],bool,str]:
+    def win(game:Game, target:list[Piece]=[]) -> tuple[list[BoardCoord],bool,str]:
         '''A generalisation of checkmate. Returns whether or not a win has occurred, and which side has won. Is checkmate by default. pieces is a list of movable Pieces.'''
         '''If the piece is in check, it can be unchecked by movement, occulsion or capturing the checking piece. If the piece has no possible moves, none of your pieces can move to occlusion squares, and none of your pieces can capture the checking piece, checkmate is reached.'''
-        info=Rules.lock(game,True)
+        info=Rules.lock(game,True,target)
         colour=game.board.turn
         if info == []:
             return [], False, game.board.turn
@@ -897,7 +935,7 @@ class Rules():
         return squares
 
     @staticmethod
-    def lock(game:Game, returnall:bool=False):
+    def lock(game:Game, returnall:bool=False, target:list[Piece]=[]):
         '''A generalisation of checks. Returns a list of board positions to lock down. Is check by default. Takes around one hundredth of a second to complete with check, and half that without check, so it chould be fine to call a lot.'''
         '''Entering check:
         The King is in check if any piece can capture it. This is detected by calling Piece.capture_squares() on every piece and seeing if the King is in one of them. Alternatively, a virtual copy of every piece could be instantiated on the King's position, then their moves detected. If a piece can capture the same type of piece (assuming move and capture symmetry), the King is in check. This is faster but mentally costlier. It is also less general, not applying in variants where moves and captures are not symmetrical across positions and/or colours. The first solution will be implemented.'''
@@ -906,6 +944,8 @@ class Rules():
 
         colour=game.board.turn
         royals=game.board.get_matching(lambda t: True if t.piece != None and t.piece.royal and t.piece.belongs_to(colour) else False)
+        if target != []:
+            royals=target
         if royals == []:
             return True
         target=royals[0].piece
